@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.claude/
+.obsidian/
+graphify-out/
+.agents/
+*.local
+.env
+.env.*
+!.env.example
+node_modules

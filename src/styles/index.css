@@ -1,0 +1,86 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * { box-sizing: border-box; }
+  html, body, #root { height: 100%; }
+
+  body {
+    background: #0c0f0c;
+    color: #beccbe;
+    font-size: 12px;
+    font-family: 'Martian Mono', 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #253028; }
+  ::-webkit-scrollbar-thumb:hover { background: #2d3e30; }
+
+  input, select, textarea {
+    background: transparent;
+    color: #beccbe;
+    outline: none;
+    font-family: 'Martian Mono', 'JetBrains Mono', monospace;
+  }
+  option { background: #141914; color: #beccbe; }
+
+  ::selection { background: rgba(200, 152, 32, 0.28); color: #f0d878; }
+}
+
+@layer utilities {
+  .scrollbar-thin { scrollbar-width: thin; }
+
+  /* Amber dot-grid texture for main content area */
+  .texture-grid {
+    background-color: #0c0f0c;
+    background-image: radial-gradient(rgba(200, 152, 32, 0.055) 1px, transparent 1px);
+    background-size: 28px 28px;
+  }
+
+  /* Amber left-accent indicator for active nav items */
+  .indicator-active {
+    border-left: 2px solid #c89820 !important;
+  }
+
+  /* Scanline overlay for code blocks */
+  .scanlines { position: relative; }
+  .scanlines::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0, 0, 0, 0.07) 2px,
+      rgba(0, 0, 0, 0.07) 4px
+    );
+    pointer-events: none;
+  }
+}
+
+@keyframes toast-slide-in {
+  from { opacity: 0; transform: translateX(16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.animate-toast-in { animation: toast-slide-in 0.18s cubic-bezier(0.16, 1, 0.3, 1); }
+.animate-fade-in  { animation: fade-in 0.15s ease-out; }
+
+/* ── highlight.js overrides ─────────────────────────────────────────────── */
+/* Use our own code background instead of vs2015's #1e1e1e */
+.hljs { background: #080a08 !important; }
+
+/* Tighten the font to match the rest of the UI */
+.code-preview-pre {
+  font-family: 'Martian Mono', 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+}

@@ -14,6 +14,7 @@ AutoScriptor lets you build structured test suites without writing boilerplate. 
 - Drag-and-drop step reordering, bulk operations (move, copy, duplicate, delete)
 - **UI test mode** — browser interactions via Playwright locators
 - **API test mode** — Postman-style HTTP request editor with params, headers, body (JSON/form-data/raw), response assertions, and variable capture
+- Project cards show colored browser/language badges (Chromium=green, Firefox=orange, WebKit=blue, All=purple; TS=blue, JS=yellow) with feature/test counts
 
 ### Code generation
 - Outputs TypeScript or JavaScript
@@ -53,6 +54,7 @@ AutoScriptor lets you build structured test suites without writing boilerplate. 
 - **@dnd-kit** — drag-and-drop step reordering
 - **jszip** — in-browser ZIP generation
 - **highlight.js** — syntax-highlighted code preview
+- **lucide-react** — icon set
 - **Plus Jakarta Sans** — UI typography; **JetBrains Mono** — code
 
 ## Getting started

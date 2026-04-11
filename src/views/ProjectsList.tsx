@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Trash2 } from 'lucide-react'
 import { useApp } from '../store/AppContext'
 import { useToast } from '../components/common/Toast'
 import { Modal } from '../components/common/Modal'
@@ -28,6 +29,36 @@ function newProject(name: string): Project {
     ],
     activeEnvironmentId: null,
   }
+}
+
+const BROWSER_BADGE: Record<string, { label: string; className: string }> = {
+  chromium: {
+    label: 'Chromium',
+    className: 'border-green-500/30 text-green-600 bg-green-500/10 dark:text-green-400',
+  },
+  firefox: {
+    label: 'Firefox',
+    className: 'border-orange-500/30 text-orange-600 bg-orange-500/10 dark:text-orange-400',
+  },
+  webkit: {
+    label: 'WebKit',
+    className: 'border-blue-500/30 text-blue-600 bg-blue-500/10 dark:text-blue-400',
+  },
+  all: {
+    label: 'All',
+    className: 'border-purple-500/30 text-purple-600 bg-purple-500/10 dark:text-purple-400',
+  },
+}
+
+const LANG_BADGE: Record<string, { label: string; className: string }> = {
+  typescript: {
+    label: 'TS',
+    className: 'border-blue-500/30 text-blue-600 bg-blue-500/10 dark:text-blue-400',
+  },
+  javascript: {
+    label: 'JS',
+    className: 'border-yellow-500/30 text-yellow-600 bg-yellow-500/10 dark:text-yellow-400',
+  },
 }
 
 export function ProjectsList() {
@@ -94,54 +125,71 @@ export function ProjectsList() {
           {state.projects.map((p) => {
             const featureCount = state.features.filter((f) => f.projectId === p.id).length
             const tcCount = state.testCases.filter((tc) => tc.projectId === p.id).length
+            const browserBadge = BROWSER_BADGE[p.browser] ?? BROWSER_BADGE.chromium
+            const langBadge = LANG_BADGE[p.language] ?? LANG_BADGE.typescript
             return (
               <div
                 key={p.id}
-                className="bg-vsc-panel border border-vsc-border rounded-xl p-5 cursor-pointer hover:border-vsc-accent/40 hover:bg-vsc-hover transition-all duration-200 group relative overflow-hidden"
+                className="bg-vsc-panel border border-vsc-border rounded-xl cursor-pointer hover:border-vsc-accent/40 transition-all duration-200 group relative overflow-hidden flex flex-col"
                 onClick={() => navigate({ type: 'project-dashboard', projectId: p.id })}
               >
-                {/* Left accent */}
-                <div className="absolute left-0 top-4 bottom-4 w-[2px] rounded-full bg-vsc-border group-hover:bg-vsc-accent transition-all duration-200" />
+                {/* Card header strip */}
+                <div className="px-4 pt-4 pb-3 bg-vsc-hover/60 border-b border-vsc-border/60 flex items-start justify-between gap-2">
+                  <h3 className="font-semibold text-sm text-vsc-text leading-snug group-hover:text-white transition-colors truncate flex-1 min-w-0">
+                    {p.name}
+                  </h3>
+                  {/* Delete button — top-right, hover only */}
+                  <button
+                    className="opacity-0 group-hover:opacity-100 transition-opacity w-6 h-6 flex items-center justify-center rounded text-vsc-dim hover:text-vsc-danger hover:bg-vsc-danger-light shrink-0"
+                    onClick={(e) => { e.stopPropagation(); confirmDelete(p.id) }}
+                    aria-label="Delete project"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
 
-                <div className="pl-3">
-                  <div className="flex items-start justify-between gap-2 mb-2">
-                    <h3 className="font-semibold text-sm text-vsc-text truncate leading-snug group-hover:text-white transition-colors">
-                      {p.name}
-                    </h3>
-                    <div className="flex gap-1.5 shrink-0">
-                      <span className="text-2xs border border-vsc-border px-2 py-0.5 text-vsc-dim rounded-full font-medium">
-                        {p.language === 'typescript' ? 'TS' : 'JS'}
-                      </span>
-                      <span className="text-2xs border border-vsc-border px-2 py-0.5 text-vsc-dim rounded-full font-medium">
-                        {p.browser}
-                      </span>
-                    </div>
+                {/* Card body */}
+                <div className="px-4 py-3 flex flex-col gap-3 flex-1">
+                  {/* Badges */}
+                  <div className="flex gap-1.5 flex-wrap">
+                    <span className={`text-2xs px-2 py-0.5 rounded-full border font-semibold ${langBadge.className}`}>
+                      {langBadge.label}
+                    </span>
+                    <span className={`text-2xs px-2 py-0.5 rounded-full border font-semibold ${browserBadge.className}`}>
+                      {browserBadge.label}
+                    </span>
                   </div>
 
                   {p.description && (
-                    <p className="text-xs text-vsc-muted mt-1 mb-2 line-clamp-2">{p.description}</p>
+                    <p className="text-xs text-vsc-muted line-clamp-2">{p.description}</p>
                   )}
+                </div>
 
-                  <div className="flex items-center gap-3 mt-3 text-xs text-vsc-dim">
-                    <span className="tabular-nums">{featureCount} feature{featureCount !== 1 ? 's' : ''}</span>
-                    <span className="text-vsc-border">·</span>
-                    <span className="tabular-nums">{tcCount} test{tcCount !== 1 ? 's' : ''}</span>
-                  </div>
-
-                  <div className="flex items-center justify-between mt-3 pt-3 border-t border-vsc-border/50">
-                    <span className="text-2xs text-vsc-dim/60">
-                      {new Date(p.updatedAt).toLocaleDateString()}
+                {/* Card footer */}
+                <div className="px-4 pb-3 pt-2 border-t border-vsc-border/50 flex items-center justify-between gap-2">
+                  {/* Stats */}
+                  <div className="flex items-center gap-3 text-xs text-vsc-dim">
+                    <span className="flex items-center gap-1">
+                      <svg width="11" height="11" viewBox="0 0 11 11" fill="none" className="opacity-60 shrink-0">
+                        <rect x="1" y="1" width="9" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.3"/>
+                        <path d="M1 4h9" stroke="currentColor" strokeWidth="1.3"/>
+                        <path d="M4 4v6" stroke="currentColor" strokeWidth="1.3"/>
+                      </svg>
+                      <span className="tabular-nums">{featureCount} feature{featureCount !== 1 ? 's' : ''}</span>
                     </span>
-                    <button
-                      className="text-2xs text-vsc-dim hover:text-vsc-danger opacity-0 group-hover:opacity-100 transition-all font-medium"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        confirmDelete(p.id)
-                      }}
-                    >
-                      Delete
-                    </button>
+                    <span className="text-vsc-border">·</span>
+                    <span className="flex items-center gap-1">
+                      <svg width="11" height="11" viewBox="0 0 11 11" fill="none" className="opacity-60 shrink-0">
+                        <path d="M2 2h7M2 5h5M2 8h3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+                      </svg>
+                      <span className="tabular-nums">{tcCount} test{tcCount !== 1 ? 's' : ''}</span>
+                    </span>
                   </div>
+
+                  {/* Date */}
+                  <span className="text-2xs text-vsc-dim/60 shrink-0">
+                    {new Date(p.updatedAt).toLocaleDateString()}
+                  </span>
                 </div>
               </div>
             )

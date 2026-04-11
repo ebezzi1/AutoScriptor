@@ -266,15 +266,25 @@ export function Sidebar() {
           {state.projects.length === 0 ? (
             <p className="text-xs text-vsc-dim px-2 py-2">No projects yet</p>
           ) : (
-            state.projects.map((p) => (
-              <button
-                key={p.id}
-                className="w-full text-left px-2.5 py-2 text-sm text-vsc-muted hover:text-vsc-text hover:bg-vsc-hover transition-all rounded-md"
-                onClick={() => navigate({ type: 'project-dashboard', projectId: p.id })}
-              >
-                {p.name}
-              </button>
-            ))
+            <div className="flex flex-col gap-1">
+              {state.projects.map((p) => {
+                const isActive =
+                  currentView.type !== 'projects' && currentView.projectId === p.id
+                return (
+                  <button
+                    key={p.id}
+                    className={`w-full text-left px-3 py-2 text-xs rounded-md transition-all border ${
+                      isActive
+                        ? 'text-vsc-accent bg-vsc-accent-light border-vsc-accent/20 font-semibold'
+                        : 'text-vsc-muted bg-vsc-hover/40 border-vsc-border/40 hover:text-vsc-text hover:bg-vsc-hover hover:border-vsc-border'
+                    }`}
+                    onClick={() => navigate({ type: 'project-dashboard', projectId: p.id })}
+                  >
+                    {p.name}
+                  </button>
+                )
+              })}
+            </div>
           )}
         </div>
       ) : (

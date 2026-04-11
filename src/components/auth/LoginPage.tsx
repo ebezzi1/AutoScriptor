@@ -51,15 +51,15 @@ export function LoginPage() {
   const isForgot = mode === 'forgot'
 
   return (
-    <div className="dark min-h-screen bg-vsc-bg flex items-center justify-center p-4 texture-grid">
-      {/* Ambient glow */}
+    <div className="min-h-screen bg-vsc-bg flex items-center justify-center p-4">
+      {/* Ambient glow — subtle, mode-aware */}
       <div
         className="pointer-events-none fixed inset-0 overflow-hidden"
         aria-hidden
       >
         <div
-          className="absolute -top-40 left-1/2 -translate-x-1/2 w-[600px] h-[400px] rounded-full opacity-[0.06]"
-          style={{ background: 'radial-gradient(ellipse at center, #6366F1, transparent 70%)' }}
+          className="absolute -top-40 left-1/2 -translate-x-1/2 w-[600px] h-[400px] rounded-full opacity-[0.04]"
+          style={{ background: 'radial-gradient(ellipse at center, rgb(var(--vsc-accent-rgb)), transparent 70%)' }}
         />
       </div>
 
@@ -70,7 +70,7 @@ export function LoginPage() {
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden>
               <path
                 d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"
-                stroke="#6366F1"
+                stroke="rgb(var(--vsc-accent-rgb))"
                 strokeWidth="1.5"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -87,13 +87,12 @@ export function LoginPage() {
 
         {/* Card */}
         <div className="bg-vsc-panel border border-vsc-border rounded-xl p-6 shadow-xl">
-          {/* Accent bar */}
-          <div className="h-px bg-gradient-to-r from-transparent via-vsc-accent/40 to-transparent -mx-6 mb-6" />
+          <div className="h-px bg-vsc-border -mx-6 mb-6" />
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Email */}
             <div>
-              <label className="block text-xs font-medium text-vsc-muted mb-1.5 uppercase tracking-wider">
+              <label className="block text-xs font-medium text-vsc-muted mb-1.5 font-medium">
                 Email
               </label>
               <input
@@ -111,7 +110,7 @@ export function LoginPage() {
             {!isForgot && (
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-medium text-vsc-muted uppercase tracking-wider">
+                  <label className="text-xs font-medium text-vsc-muted font-medium">
                     Password
                   </label>
                   {isSignin && (

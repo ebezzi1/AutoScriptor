@@ -55,23 +55,20 @@ export default function App() {
     return () => window.removeEventListener('keydown', handler)
   }, [])
 
-  const hasProject = state.currentView.type !== 'projects'
-
-  // Compute active env color for the main content border
+  // Compute active env color for the main content accent
   const activeProjectId = state.currentView.type !== 'projects' ? state.currentView.projectId : null
   const activeProject = activeProjectId ? state.projects.find((p) => p.id === activeProjectId) : null
   const activeEnv = activeProject?.environments?.find((e) => e.id === activeProject?.activeEnvironmentId) ?? null
   const envHex = activeEnv ? getEnvColor(activeEnv) : null
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden dark">
+    <div className="h-screen flex flex-col overflow-hidden bg-vsc-bg">
       <TopBar />
       <div className="flex flex-1 overflow-hidden">
-        {hasProject && <Sidebar />}
-        {!hasProject && state.currentView.type === 'projects' && <Sidebar />}
+        <Sidebar />
         <main
-          className="flex-1 overflow-y-auto scrollbar-thin texture-grid"
-          style={envHex ? { borderTop: `2px solid ${envHex}60` } : undefined}
+          className="flex-1 overflow-y-auto scrollbar-thin bg-vsc-bg"
+          style={envHex ? { borderTop: `2px solid ${envHex}50` } : undefined}
         >
           <MainContent />
         </main>

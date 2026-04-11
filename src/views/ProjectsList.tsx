@@ -58,9 +58,9 @@ export function ProjectsList() {
   }
 
   return (
-    <div className="p-10 max-w-5xl">
+    <div className="p-8 max-w-5xl mx-auto w-full flex flex-col gap-8">
       {/* Header */}
-      <div className="flex items-end justify-between mb-10">
+      <div className="flex items-end justify-between w-full">
         <div>
           <p className="text-xs text-vsc-accent font-semibold uppercase tracking-widest mb-2">
             Playwright Generator

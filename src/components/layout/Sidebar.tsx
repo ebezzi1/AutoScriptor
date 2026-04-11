@@ -386,10 +386,10 @@ export function Sidebar() {
                         </button>
                       )}
                       <button
-                        className={`flex-1 text-left text-xs py-1 px-2 rounded-md truncate transition-all border-l-2 ${
+                        className={`flex-1 text-left text-xs py-1 px-2 rounded-md truncate transition-colors ${
                           isActiveFeature
-                            ? 'text-vsc-accent border-l-vsc-accent bg-vsc-accent-light font-semibold'
-                            : 'text-vsc-text border-l-transparent hover:bg-vsc-hover font-medium'
+                            ? 'text-vsc-accent bg-vsc-accent-light font-semibold'
+                            : 'text-vsc-text hover:bg-vsc-hover font-medium'
                         }`}
                         onClick={() => {
                           if (selectionMode) { toggleFeature(feature.id); return }
@@ -416,12 +416,12 @@ export function Sidebar() {
                           return (
                             <div
                               key={tc.id}
-                              className={`flex items-center group/tc rounded-md transition-all border-l-2 ${
+                              className={`flex items-center group/tc rounded-md transition-colors ${
                                 isSelected && selectionMode
-                                  ? 'border-l-vsc-accent/60 bg-vsc-accent/8'
+                                  ? 'bg-vsc-accent/8'
                                   : isActiveTc
-                                  ? 'border-l-vsc-accent bg-vsc-accent-light'
-                                  : 'border-l-transparent hover:bg-vsc-hover'
+                                  ? 'bg-vsc-accent-light'
+                                  : 'hover:bg-vsc-hover'
                               }`}
                             >
                               {selectionMode && (

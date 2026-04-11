@@ -110,31 +110,39 @@ export const BUILTIN_TEMPLATES: StepTemplate[] = [
   },
 ]
 
-const storageKey = (projectId: string) => `pw-step-templates-${projectId}`
+// ── In-memory cache (populated from Supabase on app load) ────────────────────
+const cache = new Map<string, StepTemplate[]>()
+
+/** Called by the DB loader after fetching templates from Supabase. */
+export function initCustomTemplates(projectId: string, templates: StepTemplate[]): void {
+  cache.set(projectId, templates.filter((t) => !t.builtin))
+}
 
 export function getCustomTemplates(projectId: string): StepTemplate[] {
-  try {
-    const raw = localStorage.getItem(storageKey(projectId))
-    return raw ? (JSON.parse(raw) as StepTemplate[]) : []
-  } catch {
-    return []
-  }
+  return cache.get(projectId) ?? []
 }
 
 export function saveCustomTemplate(projectId: string, template: StepTemplate): void {
-  const existing = getCustomTemplates(projectId)
+  const existing = cache.get(projectId) ?? []
   const idx = existing.findIndex((t) => t.id === template.id)
-  if (idx >= 0) {
-    existing[idx] = template
-  } else {
-    existing.push(template)
-  }
-  localStorage.setItem(storageKey(projectId), JSON.stringify(existing))
+  if (idx >= 0) existing[idx] = template
+  else existing.push(template)
+  cache.set(projectId, existing)
+  // Async sync to Supabase (non-blocking)
+  import('./database/templates').then(({ upsertTemplate }) =>
+    upsertTemplate(projectId, template).catch(console.error)
+  )
 }
 
 export function deleteCustomTemplate(projectId: string, templateId: string): void {
-  const existing = getCustomTemplates(projectId).filter((t) => t.id !== templateId)
-  localStorage.setItem(storageKey(projectId), JSON.stringify(existing))
+  cache.set(
+    projectId,
+    (cache.get(projectId) ?? []).filter((t) => t.id !== templateId)
+  )
+  // Async delete from Supabase (non-blocking)
+  import('./database/templates').then(({ removeTemplate }) =>
+    removeTemplate(templateId).catch(console.error)
+  )
 }
 
 /** Materialise blueprint steps into real TestStep objects starting at `startOrder` */

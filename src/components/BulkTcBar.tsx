@@ -334,6 +334,7 @@ export function BulkTcBar({
       featureId: targetFeatureId,
       name: `${tc.name} (copy)`,
       steps: tc.steps.map((s) => ({ ...s, id: crypto.randomUUID() })),
+      apiSteps: tc.apiSteps?.map((s) => ({ ...s, id: crypto.randomUUID() })),
     }))
     dispatch({ type: 'BULK_COPY_TC', copies })
     toast(`Copied ${selectedTcs.length} TC${selectedTcs.length !== 1 ? 's' : ''} to "${targetFeature?.name}"`)
@@ -346,6 +347,7 @@ export function BulkTcBar({
       id: crypto.randomUUID(),
       name: `${tc.name} (copy)`,
       steps: tc.steps.map((s) => ({ ...s, id: crypto.randomUUID() })),
+      apiSteps: tc.apiSteps?.map((s) => ({ ...s, id: crypto.randomUUID() })),
     }))
     dispatch({ type: 'BULK_DUPLICATE_TC', copies })
     toast(`Duplicated ${selectedTcs.length} test case${selectedTcs.length !== 1 ? 's' : ''}`)

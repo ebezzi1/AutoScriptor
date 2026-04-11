@@ -3,11 +3,15 @@ import {
   useContext,
   useReducer,
   useEffect,
+  useRef,
   useCallback,
+  useState,
   type ReactNode,
 } from 'react'
 import type { AppState, AppAction, AppView } from '../types'
-import { loadState, saveState } from './storage'
+import { useAuth } from '../components/auth/AuthProvider'
+import { useToast } from '../components/common/Toast'
+import { loadFullState, syncAction } from '../lib/database'
 
 const initialState: AppState = {
   projects: [],
@@ -21,6 +25,9 @@ const initialState: AppState = {
 
 function reducer(state: AppState, action: AppAction): AppState {
   switch (action.type) {
+    case 'HYDRATE':
+      return { ...action.state, currentView: state.currentView }
+
     case 'SET_VIEW':
       return { ...state, currentView: action.view }
 
@@ -140,6 +147,7 @@ function reducer(state: AppState, action: AppAction): AppState {
         id: action.newTcId ?? crypto.randomUUID(),
         name: `${original.name} (copy)`,
         steps: original.steps.map((s) => ({ ...s, id: crypto.randomUUID() })),
+        apiSteps: original.apiSteps?.map((s) => ({ ...s, id: crypto.randomUUID() })),
       }
       return { ...state, testCases: [...state.testCases, copy] }
     }
@@ -152,6 +160,7 @@ function reducer(state: AppState, action: AppAction): AppState {
         featureId: action.targetFeatureId,
         name: `${original.name} (copy)`,
         steps: original.steps.map((s) => ({ ...s, id: crypto.randomUUID() })),
+        apiSteps: original.apiSteps?.map((s) => ({ ...s, id: crypto.randomUUID() })),
       }
       return { ...state, testCases: [...state.testCases, copy] }
     }
@@ -208,27 +217,85 @@ function reducer(state: AppState, action: AppAction): AppState {
 
 interface ContextValue {
   state: AppState
-  dispatch: React.Dispatch<AppAction>
+  dispatch: (action: AppAction) => void
   navigate: (view: AppView) => void
 }
 
 const AppContext = createContext<ContextValue | null>(null)
 
-export function AppProvider({ children }: { children: ReactNode }) {
-  const saved = loadState()
-  const [state, dispatch] = useReducer(reducer, {
-    ...initialState,
-    ...(saved ?? {}),
-  })
+function LoadingScreen() {
+  return (
+    <div className="h-screen bg-vsc-bg flex flex-col items-center justify-center gap-3">
+      <svg
+        className="animate-spin h-6 w-6 text-vsc-accent"
+        viewBox="0 0 24 24"
+        fill="none"
+        aria-label="Loading workspace"
+      >
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+      </svg>
+      <p className="text-vsc-muted text-sm font-mono">Loading workspace…</p>
+    </div>
+  )
+}
 
+export function AppProvider({ children }: { children: ReactNode }) {
+  const { user, teamId } = useAuth()
+  const { toast: showToast } = useToast()
+  const [state, dispatchRaw] = useReducer(reducer, initialState)
+  const [dbLoading, setDbLoading] = useState(true)
+
+  // Ref so the dispatch closure can read current state synchronously
+  const stateRef = useRef(state)
+  stateRef.current = state
+
+  // Load initial workspace data from Supabase once teamId is resolved
   useEffect(() => {
-    saveState(state)
-  }, [state])
+    if (!user || !teamId) { setDbLoading(false); return }
+    setDbLoading(true)
+    console.log('[AppProvider] Loading workspace for team:', teamId)
+    loadFullState(teamId)
+      .then((loaded) => dispatchRaw({ type: 'HYDRATE', state: loaded }))
+      .catch((err: Error) => {
+        console.error('[AppProvider] Failed to load workspace:', err)
+        showToast('Failed to load workspace — please refresh', 'error')
+      })
+      .finally(() => setDbLoading(false))
+  }, [user?.id, teamId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const dispatch = useCallback(
+    (action: AppAction) => {
+      const prevState = stateRef.current
+
+      // Optimistic update
+      dispatchRaw(action)
+
+      // Skip DB sync for pure UI actions
+      if (action.type === 'SET_VIEW' || action.type === 'HYDRATE') return
+
+      // Compute next state (same pure function)
+      const nextState = reducer(prevState, action)
+
+      // Sync to Supabase asynchronously
+      syncAction(action, teamId!, prevState, nextState).catch((err: Error) => {
+        console.error('[AppProvider] DB sync failed:', err)
+        showToast(`Save failed: ${err.message}`, 'error')
+        // Revert by reloading authoritative state from DB
+        loadFullState(teamId!)
+          .then((fresh) => dispatchRaw({ type: 'HYDRATE', state: fresh }))
+          .catch(console.error)
+      })
+    },
+    [teamId] // eslint-disable-line react-hooks/exhaustive-deps
+  )
 
   const navigate = useCallback(
     (view: AppView) => dispatch({ type: 'SET_VIEW', view }),
-    []
+    [dispatch]
   )
+
+  if (dbLoading) return <LoadingScreen />
 
   return (
     <AppContext.Provider value={{ state, dispatch, navigate }}>

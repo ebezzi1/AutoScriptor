@@ -219,6 +219,7 @@ export interface AppState {
 }
 
 export type AppAction =
+  | { type: 'HYDRATE'; state: Omit<AppState, 'currentView'> }
   | { type: 'SET_VIEW'; view: AppView }
   // Projects
   | { type: 'CREATE_PROJECT'; project: Project }

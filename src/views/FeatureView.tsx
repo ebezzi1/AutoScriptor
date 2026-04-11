@@ -68,7 +68,7 @@ export function FeatureView({ projectId, featureId }: Props) {
   }
 
   return (
-    <div className="p-8 max-w-5xl flex flex-col gap-8">
+    <div className="p-8 max-w-5xl mx-auto w-full flex flex-col gap-8">
       {/* Header */}
       <div className="flex items-start justify-between gap-6">
         <div className="flex-1 min-w-0">

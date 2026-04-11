@@ -20,37 +20,52 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     setToasts((prev) => [...prev, { id, message, type }])
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id))
-    }, 3000)
+    }, 3500)
   }, [])
 
-  const config: Record<Toast['type'], { prefix: string; cls: string }> = {
+  const config: Record<Toast['type'], { icon: React.ReactNode; cls: string }> = {
     success: {
-      prefix: 'OK',
-      cls: 'border-l-vsc-success text-vsc-success bg-vsc-panel border border-vsc-border border-l-2',
+      icon: (
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+          <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.3"/>
+          <path d="M5.5 8l1.8 1.8L10.5 6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      ),
+      cls: 'bg-vsc-panel border border-vsc-border text-vsc-success shadow-lg',
     },
     error: {
-      prefix: 'ERR',
-      cls: 'border-l-vsc-danger text-vsc-danger bg-vsc-panel border border-vsc-border border-l-2',
+      icon: (
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+          <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.3"/>
+          <path d="M8 5v3.5M8 10.5v.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+        </svg>
+      ),
+      cls: 'bg-vsc-panel border border-vsc-border text-vsc-danger shadow-lg',
     },
     info: {
-      prefix: 'INF',
-      cls: 'border-l-vsc-accent text-vsc-accent bg-vsc-panel border border-vsc-border border-l-2',
+      icon: (
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+          <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.3"/>
+          <path d="M8 7v4M8 5.5v.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+        </svg>
+      ),
+      cls: 'bg-vsc-panel border border-vsc-border text-vsc-accent shadow-lg',
     },
   }
 
   return (
     <ToastContext.Provider value={{ toast }}>
       {children}
-      <div className="fixed bottom-5 right-5 flex flex-col gap-1.5 z-50">
+      <div className="fixed bottom-5 right-5 flex flex-col gap-2 z-50">
         {toasts.map((t) => {
-          const { prefix, cls } = config[t.type]
+          const { icon, cls } = config[t.type]
           return (
             <div
               key={t.id}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-sm shadow-xl shadow-black/40 animate-toast-in ${cls}`}
+              className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg animate-toast-in ${cls}`}
             >
-              <span className="text-[9px] font-semibold tracking-widest opacity-70">[{prefix}]</span>
-              <span className="text-[11px] font-medium">{t.message}</span>
+              <span className="shrink-0">{icon}</span>
+              <span className="text-xs font-medium text-vsc-text">{t.message}</span>
             </div>
           )
         })}

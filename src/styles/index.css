@@ -1,52 +1,67 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@300;400;500&display=swap');
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/geist";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
-  * { box-sizing: border-box; }
+  * { box-sizing: border-box;
+    @apply border-border outline-ring/50; }
   html, body, #root { height: 100%; }
 
   body {
-    background: #0c0f0c;
-    color: #beccbe;
-    font-size: 12px;
-    font-family: 'Martian Mono', 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+    background: #0A0A0D;
+    color: #EEEEF0;
+    font-size: 14px;
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    line-height: 1.55;
+    @apply bg-background text-foreground;
   }
 
-  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: #253028; }
-  ::-webkit-scrollbar-thumb:hover { background: #2d3e30; }
+  ::-webkit-scrollbar-thumb { background: #28283A; border-radius: 2px; }
+  ::-webkit-scrollbar-thumb:hover { background: #38384A; }
 
   input, select, textarea {
     background: transparent;
-    color: #beccbe;
+    color: #EEEEF0;
     outline: none;
-    font-family: 'Martian Mono', 'JetBrains Mono', monospace;
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   }
-  option { background: #141914; color: #beccbe; }
 
-  ::selection { background: rgba(200, 152, 32, 0.28); color: #f0d878; }
+  option { background: #131318; color: #EEEEF0; }
+
+  ::selection { background: rgba(99, 102, 241, 0.30); color: #E0E0FF; }
+  .theme { --font-heading: var(--font-sans); --font-sans: 'Geist Variable', sans-serif;
+  }
+  :root { --background: oklch(1 0 0); --foreground: oklch(0.145 0 0); --card: oklch(1 0 0); --card-foreground: oklch(0.145 0 0); --popover: oklch(1 0 0); --popover-foreground: oklch(0.145 0 0); --primary: oklch(0.205 0 0); --primary-foreground: oklch(0.985 0 0); --secondary: oklch(0.97 0 0); --secondary-foreground: oklch(0.205 0 0); --muted: oklch(0.97 0 0); --muted-foreground: oklch(0.556 0 0); --accent: oklch(0.97 0 0); --accent-foreground: oklch(0.205 0 0); --destructive: oklch(0.577 0.245 27.325); --border: oklch(0.922 0 0); --input: oklch(0.922 0 0); --ring: oklch(0.708 0 0); --chart-1: oklch(0.87 0 0); --chart-2: oklch(0.556 0 0); --chart-3: oklch(0.439 0 0); --chart-4: oklch(0.371 0 0); --chart-5: oklch(0.269 0 0); --radius: 0.625rem; --sidebar: oklch(0.985 0 0); --sidebar-foreground: oklch(0.145 0 0); --sidebar-primary: oklch(0.205 0 0); --sidebar-primary-foreground: oklch(0.985 0 0); --sidebar-accent: oklch(0.97 0 0); --sidebar-accent-foreground: oklch(0.205 0 0); --sidebar-border: oklch(0.922 0 0); --sidebar-ring: oklch(0.708 0 0);
+  }
+  .dark { --background: oklch(0.145 0 0); --foreground: oklch(0.985 0 0); --card: oklch(0.205 0 0); --card-foreground: oklch(0.985 0 0); --popover: oklch(0.205 0 0); --popover-foreground: oklch(0.985 0 0); --primary: oklch(0.922 0 0); --primary-foreground: oklch(0.205 0 0); --secondary: oklch(0.269 0 0); --secondary-foreground: oklch(0.985 0 0); --muted: oklch(0.269 0 0); --muted-foreground: oklch(0.708 0 0); --accent: oklch(0.269 0 0); --accent-foreground: oklch(0.985 0 0); --destructive: oklch(0.704 0.191 22.216); --border: oklch(1 0 0 / 10%); --input: oklch(1 0 0 / 15%); --ring: oklch(0.556 0 0); --chart-1: oklch(0.87 0 0); --chart-2: oklch(0.556 0 0); --chart-3: oklch(0.439 0 0); --chart-4: oklch(0.371 0 0); --chart-5: oklch(0.269 0 0); --sidebar: oklch(0.205 0 0); --sidebar-foreground: oklch(0.985 0 0); --sidebar-primary: oklch(0.488 0.243 264.376); --sidebar-primary-foreground: oklch(0.985 0 0); --sidebar-accent: oklch(0.269 0 0); --sidebar-accent-foreground: oklch(0.985 0 0); --sidebar-border: oklch(1 0 0 / 10%); --sidebar-ring: oklch(0.556 0 0);
+  }
+  html {
+    @apply font-sans;
+  }
 }
 
 @layer utilities {
   .scrollbar-thin { scrollbar-width: thin; }
 
-  /* Amber dot-grid texture for main content area */
   .texture-grid {
-    background-color: #0c0f0c;
-    background-image: radial-gradient(rgba(200, 152, 32, 0.055) 1px, transparent 1px);
-    background-size: 28px 28px;
+    background-color: #0A0A0D;
+    background-image: radial-gradient(rgba(99, 102, 241, 0.035) 1px, transparent 1px);
+    background-size: 24px 24px;
   }
 
-  /* Amber left-accent indicator for active nav items */
   .indicator-active {
-    border-left: 2px solid #c89820 !important;
+    border-left: 2px solid #6366F1 !important;
   }
 
-  /* Scanline overlay for code blocks */
   .scanlines { position: relative; }
   .scanlines::after {
     content: '';
@@ -56,10 +71,14 @@
       0deg,
       transparent,
       transparent 2px,
-      rgba(0, 0, 0, 0.07) 2px,
-      rgba(0, 0, 0, 0.07) 4px
+      rgba(0, 0, 0, 0.04) 2px,
+      rgba(0, 0, 0, 0.04) 4px
     );
     pointer-events: none;
+  }
+
+  .font-mono {
+    font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace !important;
   }
 }
 
@@ -73,14 +92,126 @@
   to   { opacity: 1; }
 }
 
-.animate-toast-in { animation: toast-slide-in 0.18s cubic-bezier(0.16, 1, 0.3, 1); }
-.animate-fade-in  { animation: fade-in 0.15s ease-out; }
+@keyframes slide-down {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes popover-in {
+  from { opacity: 0; transform: translateY(4px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.animate-toast-in   { animation: toast-slide-in 0.18s cubic-bezier(0.16, 1, 0.3, 1); }
+.animate-fade-in    { animation: fade-in 0.15s ease-out; }
+.animate-slide-down { animation: slide-down 0.2s cubic-bezier(0.16, 1, 0.3, 1); }
+.animate-popover-in { animation: popover-in 0.15s cubic-bezier(0.16, 1, 0.3, 1); }
+
+@keyframes bulk-bar-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.99); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.animate-bulk-bar-in { animation: bulk-bar-in 0.22s cubic-bezier(0.16, 1, 0.3, 1); }
+
+/* ── Markdown preview ───────────────────────────────────────────────────── */
+.md-preview {
+  color: #CCCCE0;
+  line-height: 1.75;
+  font-size: 14px;
+}
+.md-preview h1 { font-size: 1.6rem; font-weight: 700; color: #EEEEF0; margin: 0 0 1rem; border-bottom: 1px solid #28283A; padding-bottom: 0.5rem; }
+.md-preview h2 { font-size: 1.2rem; font-weight: 700; color: #EEEEF0; margin: 2rem 0 0.75rem; border-bottom: 1px solid #28283A; padding-bottom: 0.375rem; }
+.md-preview h3 { font-size: 1rem; font-weight: 600; color: #DDDDF0; margin: 1.5rem 0 0.5rem; }
+.md-preview h4 { font-size: 0.875rem; font-weight: 600; color: #CCCCE0; margin: 1.25rem 0 0.375rem; }
+.md-preview p { margin: 0.5rem 0; }
+.md-preview ul, .md-preview ol { margin: 0.5rem 0 0.5rem 1.5rem; }
+.md-preview li { margin: 0.25rem 0; }
+.md-preview hr { border: none; border-top: 1px solid #28283A; margin: 1.5rem 0; }
+.md-preview code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.8em;
+  background: #1A1A26;
+  border: 1px solid #28283A;
+  padding: 0.1em 0.4em;
+  border-radius: 4px;
+  color: #A0A0E0;
+}
+.md-preview pre {
+  background: #07070B;
+  border: 1px solid #28283A;
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  overflow-x: auto;
+  margin: 0.75rem 0;
+}
+.md-preview pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.82em;
+  color: #CCCCE0;
+}
+.md-preview table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.75rem 0;
+  font-size: 0.85em;
+}
+.md-preview th {
+  background: #1A1A22;
+  color: #8888A0;
+  text-transform: uppercase;
+  font-size: 0.7em;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #28283A;
+  text-align: left;
+}
+.md-preview td {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #28283A;
+  color: #CCCCE0;
+}
+.md-preview tr:nth-child(even) td { background: #0E0E12; }
+.md-preview strong { color: #EEEEF0; font-weight: 600; }
+.md-preview em { color: #A0A0C0; font-style: italic; }
+.md-preview a { color: #6366F1; text-decoration: none; }
+.md-preview a:hover { text-decoration: underline; }
+.md-preview blockquote {
+  border-left: 3px solid #6366F1;
+  padding: 0.25rem 1rem;
+  color: #8888A0;
+  margin: 0.75rem 0;
+  background: rgba(99,102,241,0.06);
+  border-radius: 0 6px 6px 0;
+}
+
+/* ── Markdown print styles ──────────────────────────────────────────────── */
+@media print {
+  .md-print-root {
+    font-family: 'Georgia', serif;
+    font-size: 11pt;
+    color: #000;
+    line-height: 1.65;
+    max-width: 100%;
+  }
+  .md-print-root h1 { font-size: 20pt; border-bottom: 1px solid #999; padding-bottom: 4pt; }
+  .md-print-root h2 { font-size: 15pt; border-bottom: 1px solid #ccc; }
+  .md-print-root h3 { font-size: 12pt; }
+  .md-print-root h4 { font-size: 11pt; }
+  .md-print-root code { font-family: 'Courier New', monospace; background: #f4f4f4; padding: 1pt 3pt; font-size: 9pt; border-radius: 2pt; }
+  .md-print-root pre { background: #f4f4f4; padding: 8pt; border-radius: 4pt; page-break-inside: avoid; }
+  .md-print-root table { border-collapse: collapse; width: 100%; page-break-inside: avoid; }
+  .md-print-root th, .md-print-root td { border: 1px solid #ccc; padding: 4pt 8pt; text-align: left; }
+  .md-print-root th { background: #eee; font-weight: bold; }
+  .md-print-root hr { border: none; border-top: 1px solid #ccc; }
+  .md-print-root blockquote { border-left: 3pt solid #999; padding-left: 8pt; color: #555; }
+}
 
 /* ── highlight.js overrides ─────────────────────────────────────────────── */
-/* Use our own code background instead of vs2015's #1e1e1e */
-.hljs { background: #080a08 !important; }
+.hljs { background: #07070B !important; }
 
-/* Tighten the font to match the rest of the UI */
 .code-preview-pre {
-  font-family: 'Martian Mono', 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+  font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
 }

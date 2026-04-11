@@ -58,87 +58,90 @@ export function ProjectsList() {
   }
 
   return (
-    <div className="p-8 max-w-5xl">
+    <div className="p-10 max-w-5xl">
       {/* Header */}
-      <div className="flex items-end justify-between mb-8">
+      <div className="flex items-end justify-between mb-10">
         <div>
-          <p className="text-[9px] text-vsc-accent uppercase tracking-[0.16em] mb-1.5">
-            Playwright Test Generator
+          <p className="text-xs text-vsc-accent font-semibold uppercase tracking-widest mb-2">
+            Playwright Generator
           </p>
-          <h1 className="text-xl font-semibold text-vsc-text tracking-tight">Projects</h1>
-          <p className="text-[11px] text-vsc-muted mt-1">
+          <h1 className="text-3xl font-bold text-vsc-text tracking-tight leading-tight">Projects</h1>
+          <p className="text-sm text-vsc-muted mt-1.5">
             Manage your Playwright test suites
           </p>
         </div>
-        <Btn variant="primary" onClick={() => setCreating(true)}>
-          + New project
+        <Btn variant="primary" size="md" onClick={() => setCreating(true)}>
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none" className="shrink-0">
+            <path d="M6.5 1v11M1 6.5h11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+          </svg>
+          New project
         </Btn>
       </div>
 
       {state.projects.length === 0 ? (
-        <div className="border border-dashed border-vsc-border/60 rounded-sm p-16 text-center">
-          <div className="w-8 h-8 border border-vsc-border mx-auto mb-4 flex items-center justify-center">
-            <span className="text-vsc-dim text-xs">PW</span>
+        <div className="border border-dashed border-vsc-border rounded-2xl p-20 text-center">
+          <div className="w-12 h-12 rounded-xl bg-vsc-panel border border-vsc-border mx-auto mb-5 flex items-center justify-center">
+            <span className="text-vsc-accent text-sm font-bold">PW</span>
           </div>
-          <p className="text-vsc-dim text-[11px] uppercase tracking-wider">No projects yet</p>
-          <p className="text-vsc-dim text-[10px] mt-1">Create one to get started</p>
+          <p className="text-vsc-muted text-sm font-medium">No projects yet</p>
+          <p className="text-vsc-dim text-xs mt-1">Create one to get started</p>
+          <Btn variant="primary" size="md" className="mt-6" onClick={() => setCreating(true)}>
+            Create your first project
+          </Btn>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {state.projects.map((p) => {
-            const featureCount = state.features.filter(
-              (f) => f.projectId === p.id
-            ).length
-            const tcCount = state.testCases.filter(
-              (tc) => tc.projectId === p.id
-            ).length
+            const featureCount = state.features.filter((f) => f.projectId === p.id).length
+            const tcCount = state.testCases.filter((tc) => tc.projectId === p.id).length
             return (
               <div
                 key={p.id}
-                className="bg-vsc-panel border border-vsc-border rounded-sm p-4 cursor-pointer hover:border-vsc-accent/60 hover:bg-vsc-hover transition-all duration-150 group relative overflow-hidden"
-                onClick={() =>
-                  navigate({ type: 'project-dashboard', projectId: p.id })
-                }
+                className="bg-vsc-panel border border-vsc-border rounded-xl p-5 cursor-pointer hover:border-vsc-accent/40 hover:bg-vsc-hover transition-all duration-200 group relative overflow-hidden"
+                onClick={() => navigate({ type: 'project-dashboard', projectId: p.id })}
               >
-                {/* Amber left accent */}
-                <div className="absolute left-0 top-0 bottom-0 w-[2px] bg-vsc-accent/30 group-hover:bg-vsc-accent transition-all duration-150" />
+                {/* Left accent */}
+                <div className="absolute left-0 top-4 bottom-4 w-[2px] rounded-full bg-vsc-border group-hover:bg-vsc-accent transition-all duration-200" />
 
-                <div className="flex items-start justify-between gap-2 pl-1">
-                  <h3 className="font-semibold text-[12px] text-vsc-text truncate leading-tight">
-                    {p.name}
-                  </h3>
-                  <div className="flex gap-1 shrink-0">
-                    <span className="text-[9px] border border-vsc-border/80 px-1.5 py-0.5 text-vsc-muted uppercase tracking-wide">
-                      {p.language === 'typescript' ? 'TS' : 'JS'}
-                    </span>
-                    <span className="text-[9px] border border-vsc-border/80 px-1.5 py-0.5 text-vsc-muted uppercase tracking-wide">
-                      {p.browser}
-                    </span>
+                <div className="pl-3">
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <h3 className="font-semibold text-sm text-vsc-text truncate leading-snug group-hover:text-white transition-colors">
+                      {p.name}
+                    </h3>
+                    <div className="flex gap-1.5 shrink-0">
+                      <span className="text-2xs border border-vsc-border px-2 py-0.5 text-vsc-dim rounded-full font-medium">
+                        {p.language === 'typescript' ? 'TS' : 'JS'}
+                      </span>
+                      <span className="text-2xs border border-vsc-border px-2 py-0.5 text-vsc-dim rounded-full font-medium">
+                        {p.browser}
+                      </span>
+                    </div>
                   </div>
-                </div>
-                {p.description && (
-                  <p className="text-[10px] text-vsc-muted mt-1.5 line-clamp-2 pl-1">
-                    {p.description}
-                  </p>
-                )}
-                <div className="flex items-center gap-3 mt-3 text-[10px] text-vsc-dim pl-1">
-                  <span className="tabular-nums">{featureCount} features</span>
-                  <span className="text-vsc-dim/40">·</span>
-                  <span className="tabular-nums">{tcCount} test cases</span>
-                </div>
-                <div className="flex items-center justify-between mt-3 pl-1">
-                  <span className="text-[9px] text-vsc-dim">
-                    {new Date(p.updatedAt).toLocaleDateString()}
-                  </span>
-                  <button
-                    className="text-[9px] text-vsc-dim hover:text-vsc-danger opacity-0 group-hover:opacity-100 transition-all uppercase tracking-wide"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      confirmDelete(p.id)
-                    }}
-                  >
-                    Delete
-                  </button>
+
+                  {p.description && (
+                    <p className="text-xs text-vsc-muted mt-1 mb-2 line-clamp-2">{p.description}</p>
+                  )}
+
+                  <div className="flex items-center gap-3 mt-3 text-xs text-vsc-dim">
+                    <span className="tabular-nums">{featureCount} feature{featureCount !== 1 ? 's' : ''}</span>
+                    <span className="text-vsc-border">·</span>
+                    <span className="tabular-nums">{tcCount} test{tcCount !== 1 ? 's' : ''}</span>
+                  </div>
+
+                  <div className="flex items-center justify-between mt-3 pt-3 border-t border-vsc-border/50">
+                    <span className="text-2xs text-vsc-dim/60">
+                      {new Date(p.updatedAt).toLocaleDateString()}
+                    </span>
+                    <button
+                      className="text-2xs text-vsc-dim hover:text-vsc-danger opacity-0 group-hover:opacity-100 transition-all font-medium"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        confirmDelete(p.id)
+                      }}
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
               </div>
             )
@@ -153,13 +156,11 @@ export function ProjectsList() {
           footer={
             <>
               <Btn variant="ghost" onClick={() => setCreating(false)}>Cancel</Btn>
-              <Btn variant="primary" onClick={handleCreate} disabled={!name.trim()}>
-                Create
-              </Btn>
+              <Btn variant="primary" onClick={handleCreate} disabled={!name.trim()}>Create</Btn>
             </>
           }
         >
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-5">
             <Field label="Project name">
               <Input
                 autoFocus
@@ -170,12 +171,7 @@ export function ProjectsList() {
               />
             </Field>
             <Field label="Language">
-              <Select
-                value={lang}
-                onChange={(e) =>
-                  setLang(e.target.value as 'typescript' | 'javascript')
-                }
-              >
+              <Select value={lang} onChange={(e) => setLang(e.target.value as 'typescript' | 'javascript')}>
                 <option value="typescript">TypeScript</option>
                 <option value="javascript">JavaScript</option>
               </Select>
@@ -195,9 +191,9 @@ export function ProjectsList() {
             </>
           }
         >
-          <p className="text-xs text-vsc-muted leading-relaxed">
-            This will permanently delete the project and all its features, test
-            cases, variables, utils, and fixtures. This cannot be undone.
+          <p className="text-sm text-vsc-muted leading-relaxed">
+            This will permanently delete the project and all its features, test cases, variables,
+            utils, and fixtures. This cannot be undone.
           </p>
         </Modal>
       )}

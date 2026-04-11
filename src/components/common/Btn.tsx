@@ -8,18 +8,18 @@ interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variants = {
   primary:
-    'bg-vsc-accent hover:bg-vsc-accent-hover text-[#0c0f0c] border-transparent font-semibold',
+    'bg-vsc-accent hover:bg-vsc-accent-hover text-white border-transparent font-semibold shadow-sm shadow-vsc-accent/20',
   secondary:
-    'bg-transparent hover:bg-vsc-hover text-vsc-text border-vsc-border hover:border-vsc-accent/50',
+    'bg-transparent hover:bg-vsc-hover text-vsc-text border-vsc-border hover:border-vsc-accent/40',
   ghost:
-    'bg-transparent hover:bg-vsc-hover text-vsc-muted hover:text-vsc-accent border-transparent',
+    'bg-transparent hover:bg-vsc-hover text-vsc-muted hover:text-vsc-text border-transparent',
   danger:
-    'bg-transparent hover:bg-vsc-danger-light text-vsc-danger border-vsc-danger/30 hover:border-vsc-danger/60',
+    'bg-transparent hover:bg-vsc-danger-light text-vsc-danger border-vsc-danger/30 hover:border-vsc-danger/50',
 }
 
 const sizes = {
-  sm: 'px-2.5 py-1 text-[10px] tracking-wider',
-  md: 'px-3 py-1.5 text-[10px] tracking-wider',
+  sm: 'px-3 py-1.5 text-xs gap-1.5',
+  md: 'px-4 py-2 text-sm gap-2',
 }
 
 export function Btn({
@@ -31,7 +31,7 @@ export function Btn({
 }: Props) {
   return (
     <button
-      className={`inline-flex items-center gap-1.5 border rounded-sm font-medium transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed uppercase ${variants[variant]} ${sizes[size]} ${className}`}
+      className={`inline-flex items-center border rounded-md font-medium transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-vsc-accent/50 ${variants[variant]} ${sizes[size]} ${className}`}
       {...rest}
     >
       {children}

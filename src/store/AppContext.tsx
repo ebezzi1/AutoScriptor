@@ -96,11 +96,42 @@ function reducer(state: AppState, action: AppAction): AppState {
           tc.id === action.tc.id ? action.tc : tc
         ),
       }
-    case 'DELETE_TC':
+    case 'DELETE_TC': {
+      const delId = action.tcId
       return {
         ...state,
-        testCases: state.testCases.filter((tc) => tc.id !== action.tcId),
+        testCases: state.testCases
+          .filter((tc) => tc.id !== delId)
+          .map((tc) =>
+            tc.dependencies?.includes(delId)
+              ? { ...tc, dependencies: tc.dependencies.filter((d) => d !== delId) }
+              : tc
+          ),
       }
+    }
+    case 'BULK_DELETE_TC': {
+      const ids = new Set(action.tcIds)
+      return {
+        ...state,
+        testCases: state.testCases
+          .filter((tc) => !ids.has(tc.id))
+          .map((tc) =>
+            tc.dependencies?.some((d) => ids.has(d))
+              ? { ...tc, dependencies: tc.dependencies!.filter((d) => !ids.has(d)) }
+              : tc
+          ),
+      }
+    }
+    case 'BULK_MOVE_TC':
+      return {
+        ...state,
+        testCases: state.testCases.map((tc) =>
+          action.tcIds.includes(tc.id) ? { ...tc, featureId: action.targetFeatureId } : tc
+        ),
+      }
+    case 'BULK_COPY_TC':
+    case 'BULK_DUPLICATE_TC':
+      return { ...state, testCases: [...state.testCases, ...action.copies] }
     case 'DUPLICATE_TC': {
       const original = state.testCases.find((tc) => tc.id === action.tcId)
       if (!original) return state

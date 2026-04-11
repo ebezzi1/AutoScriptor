@@ -38,6 +38,26 @@ function replaceVars(
   })
 }
 
+// ── Visual regression snapshot options ─────────────────────────────────────
+
+function buildSnapshotOpts(step: TestStep, extraParts: string[] = []): string {
+  const parts: string[] = []
+  const threshold = step.maxDiffThreshold ?? 0.2
+  if (threshold !== 0.2) parts.push(`maxDiffPixelRatio: ${threshold}`)
+  if (step.maskSelectors?.trim()) {
+    const masks = step.maskSelectors
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map((s) => `page.locator(${JSON.stringify(s)})`)
+      .join(', ')
+    parts.push(`mask: [${masks}]`)
+  }
+  if (step.disableAnimations ?? true) parts.push(`animations: 'disabled'`)
+  parts.push(...extraParts)
+  return parts.length ? `, { ${parts.join(', ')} }` : ''
+}
+
 // ── Single step → code ──────────────────────────────────────────────────────
 
 function stepToCode(
@@ -73,6 +93,28 @@ function stepToCode(
     case 'screenshot': actionCode = `await page.screenshot({ path: ${valueStr} })`; break
     case 'press':      actionCode = `await ${loc}.press(${valueStr})`; break
     case 'scrollTo':   actionCode = `await ${loc}.scrollIntoViewIfNeeded()`; break
+    case 'screenshot.full': {
+      const name = step.value || 'screenshot.png'
+      const opts = buildSnapshotOpts(step)
+      actionCode = `await expect(page).toHaveScreenshot(${JSON.stringify(name)}${opts})`
+      break
+    }
+    case 'screenshot.element': {
+      const name = step.value || 'screenshot.png'
+      const opts = buildSnapshotOpts(step)
+      actionCode = `await expect(${loc}).toHaveScreenshot(${JSON.stringify(name)}${opts})`
+      break
+    }
+    case 'screenshot.clip': {
+      const name = step.value || 'screenshot.png'
+      const clipParts = step.selector.split(',').map((s) => parseFloat(s.trim()))
+      const clipExtra = clipParts.length === 4 && clipParts.every((n) => !isNaN(n))
+        ? [`clip: { x: ${clipParts[0]}, y: ${clipParts[1]}, width: ${clipParts[2]}, height: ${clipParts[3]} }`]
+        : []
+      const opts = buildSnapshotOpts(step, clipExtra)
+      actionCode = `await expect(page).toHaveScreenshot(${JSON.stringify(name)}${opts})`
+      break
+    }
   }
 
   // wait behavior
@@ -135,8 +177,10 @@ function buildPageUrlGoto(pageUrl: string | undefined, vars: GlobalVariable[], i
 
 // ── Variables check ─────────────────────────────────────────────────────────
 
+const VISUAL_ACTIONS = ['screenshot.full', 'screenshot.element', 'screenshot.clip']
+
 function hasAssertions(steps: TestStep[]): boolean {
-  return steps.some((s) => s.assertion !== 'none')
+  return steps.some((s) => s.assertion !== 'none' || VISUAL_ACTIONS.includes(s.action))
 }
 
 function collectImports(
@@ -187,6 +231,7 @@ export default defineConfig({
 ${globalSetupLine}  retries: ${project.retries},
   timeout: ${project.defaultTimeout},
   reporter: ${reporterStr},
+  updateSnapshots: 'missing',
   use: {
     baseURL: ${JSON.stringify(project.baseUrl)},
 ${storageStateLine}    trace: 'on-first-retry',
@@ -379,10 +424,13 @@ export function generateSpecFile(
   vars: GlobalVariable[],
   utils: ReusableUtil[],
   fixtures: Fixture[],
-  project: Project
+  project: Project,
+  options?: { serial?: boolean; crossFeatureDeps?: string[] }
 ): string {
   const { needsExpect } = collectImports(testCases, [feature])
   const auth = project.auth
+  const serial = options?.serial ?? false
+  const crossFeatureDeps = options?.crossFeatureDeps ?? []
 
   const nonSensitiveVars = vars.filter((v) => !v.sensitive && v.scope === 'project')
   const utilImports = utils
@@ -448,16 +496,92 @@ ${roleBlocks}
     ? `// Auth role: ${auth.roles[0].name} (${auth.roles[0].storageStatePath})\n`
     : ''
 
+  const crossDepComments = crossFeatureDeps.length
+    ? crossFeatureDeps.map((d) => `// Depends on: ${d}`).join('\n') + '\n'
+    : ''
+
   const tcBlocks = testCases
     .map((tc) => buildTCBlock(tc, vars, utils, fixtures))
     .join('\n\n')
 
+  const describeFn = serial ? 'test.describe.serial' : 'test.describe'
+
   return `${imports}
 
-${authComment}test.describe(${JSON.stringify(feature.name)}, () => {
+${crossDepComments}${authComment}${describeFn}(${JSON.stringify(feature.name)}, () => {
 ${beforeEachCode}${afterEachCode}
 ${tcBlocks}
 })
+`
+}
+
+// ── Run order script ──────────────────────────────────────────────────────────
+
+export function generateRunOrderScript(
+  features: Feature[],
+  testCases: TestCase[],
+  ext: string
+): string {
+  // Topological sort of all TCs
+  const inDegree = new Map<string, number>(testCases.map((tc) => [tc.id, 0]))
+  const adj = new Map<string, string[]>(testCases.map((tc) => [tc.id, []]))
+
+  for (const tc of testCases) {
+    for (const dep of tc.dependencies ?? []) {
+      if (adj.has(dep)) adj.get(dep)!.push(tc.id)
+      inDegree.set(tc.id, (inDegree.get(tc.id) ?? 0) + 1)
+    }
+  }
+
+  const queue = testCases.filter((tc) => (inDegree.get(tc.id) ?? 0) === 0).map((tc) => tc.id)
+  const sortedIds: string[] = []
+  while (queue.length) {
+    const id = queue.shift()!
+    sortedIds.push(id)
+    for (const next of adj.get(id) ?? []) {
+      const d = (inDegree.get(next) ?? 0) - 1
+      inDegree.set(next, d)
+      if (d === 0) queue.push(next)
+    }
+  }
+  // Append any not reached
+  for (const tc of testCases) if (!sortedIds.includes(tc.id)) sortedIds.push(tc.id)
+
+  const featureSlug = (name: string) =>
+    name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+  const tcSlug = (name: string) =>
+    name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+  const featureMap = new Map(features.map((f) => [f.id, f]))
+
+  const lines: string[] = []
+  const tcMap = new Map(testCases.map((tc) => [tc.id, tc]))
+
+  for (const id of sortedIds) {
+    const tc = tcMap.get(id)
+    if (!tc) continue
+    const feature = featureMap.get(tc.featureId)
+    if (!feature) continue
+    const path = `tests/${featureSlug(feature.name)}/${tcSlug(tc.name)}.spec.${ext}`
+    const deps = (tc.dependencies ?? [])
+      .map((d) => tcMap.get(d)?.name)
+      .filter(Boolean)
+      .join(', ')
+    const comment = deps ? `  # depends on: ${deps}` : ''
+    lines.push(`npx playwright test ${path}${comment}`)
+  }
+
+  return `#!/usr/bin/env bash
+# Run tests in dependency order
+# Generated by AutoScriptor — re-generate after changing dependencies
+set -e
+
+echo "Running ${testCases.length} tests in dependency order..."
+echo ""
+
+${lines.join('\n')}
+
+echo ""
+echo "All tests passed."
 `
 }
 

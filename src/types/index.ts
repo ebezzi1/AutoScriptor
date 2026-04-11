@@ -43,6 +43,39 @@ export interface AuthConfig {
   roles: AuthRole[]
 }
 
+export type CiPlatform = 'github' | 'gitlab' | 'azure' | 'jenkins'
+
+export interface CiCdConfig {
+  platforms: CiPlatform[]
+  nodeVersion: '18' | '20' | '22'
+  packageManager: 'npm' | 'yarn' | 'pnpm'
+  pushBranches: string[]
+  pullRequests: boolean
+  manualTrigger: boolean
+  scheduledCron: string
+  shardEnabled: boolean
+  shardWorkers: number
+}
+
+export const DEFAULT_CICD_CONFIG: CiCdConfig = {
+  platforms: ['github'],
+  nodeVersion: '20',
+  packageManager: 'npm',
+  pushBranches: ['main', 'develop'],
+  pullRequests: true,
+  manualTrigger: true,
+  scheduledCron: '',
+  shardEnabled: false,
+  shardWorkers: 4,
+}
+
+export const CI_PLATFORM_META: Record<CiPlatform, { name: string; filename: string; language: 'yaml' | 'groovy' }> = {
+  github: { name: 'GitHub Actions', filename: '.github/workflows/playwright.yml', language: 'yaml' },
+  gitlab: { name: 'GitLab CI', filename: '.gitlab-ci.yml', language: 'yaml' },
+  azure: { name: 'Azure DevOps', filename: 'azure-pipelines.yml', language: 'yaml' },
+  jenkins: { name: 'Jenkins', filename: 'Jenkinsfile', language: 'groovy' },
+}
+
 export interface Project {
   id: string
   name: string
@@ -60,6 +93,7 @@ export interface Project {
   environments?: EnvProfile[]
   activeEnvironmentId?: string | null
   auth?: AuthConfig
+  cicd?: CiCdConfig
 }
 
 export type SelectorStrategy = 'css' | 'xpath' | 'data-testid' | 'role' | 'text' | 'label'
@@ -114,6 +148,7 @@ export type ActionType =
   | 'click' | 'fill' | 'check' | 'uncheck' | 'select'
   | 'hover' | 'dblclick' | 'wait' | 'navigate' | 'screenshot'
   | 'press' | 'scrollTo'
+  | 'screenshot.full' | 'screenshot.element' | 'screenshot.clip'
 export type AssertionType =
   | 'none' | 'toBeVisible' | 'toBeHidden' | 'toHaveText'
   | 'toHaveValue' | 'toContainText' | 'toBeChecked'
@@ -131,6 +166,10 @@ export interface TestStep {
   waitBehavior: 'auto' | 'networkidle' | 'domcontentloaded' | 'custom'
   waitMs?: number
   utilRef?: string
+  // Visual regression fields (used when action is screenshot.*)
+  maxDiffThreshold?: number   // 0–1 ratio, default 0.2
+  maskSelectors?: string      // comma-separated CSS selectors for dynamic content
+  disableAnimations?: boolean // default true
 }
 
 export interface TestCase {
@@ -154,6 +193,10 @@ export interface TestCase {
   apiSteps?: ApiStep[]
   /** Auth role assigned to this test case */
   authRoleId?: string
+  /** IDs of test cases that must pass before this one runs */
+  dependencies?: string[]
+  /** When true, excluded from code generation, matrix export, and coverage counts */
+  disabled?: boolean
 }
 
 // Navigation state
@@ -192,6 +235,10 @@ export type AppAction =
   | { type: 'DELETE_TC'; tcId: string }
   | { type: 'DUPLICATE_TC'; tcId: string; newTcId?: string }
   | { type: 'DUPLICATE_TC_TO'; tcId: string; targetFeatureId: string; newTcId: string }
+  | { type: 'BULK_DELETE_TC'; tcIds: string[] }
+  | { type: 'BULK_MOVE_TC'; tcIds: string[]; targetFeatureId: string }
+  | { type: 'BULK_COPY_TC'; copies: TestCase[] }
+  | { type: 'BULK_DUPLICATE_TC'; copies: TestCase[] }
   // Variables
   | { type: 'CREATE_VAR'; variable: GlobalVariable }
   | { type: 'UPDATE_VAR'; variable: GlobalVariable }
@@ -218,7 +265,22 @@ export const ACTION_LABELS: Record<ActionType, string> = {
   screenshot: 'Screenshot',
   press: 'Press key',
   scrollTo: 'Scroll to',
+  'screenshot.full': 'Full page',
+  'screenshot.element': 'Element',
+  'screenshot.clip': 'Clip region',
 }
+
+export const VISUAL_ACTIONS: ActionType[] = ['screenshot.full', 'screenshot.element', 'screenshot.clip']
+
+// Groups for action dropdown
+export const ACTION_GROUPS: { label: string; actions: ActionType[] }[] = [
+  { label: 'Interaction', actions: ['click', 'dblclick', 'hover', 'check', 'uncheck'] },
+  { label: 'Input', actions: ['fill', 'select', 'press'] },
+  { label: 'Navigation', actions: ['navigate', 'scrollTo'] },
+  { label: 'Timing', actions: ['wait'] },
+  { label: 'Debug', actions: ['screenshot'] },
+  { label: 'Visual', actions: ['screenshot.full', 'screenshot.element', 'screenshot.clip'] },
+]
 
 export const ASSERTION_LABELS: Record<AssertionType, string> = {
   none: '— none —',

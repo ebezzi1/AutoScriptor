@@ -11,6 +11,7 @@ import { ChipInput } from '../components/common/ChipInput'
 import { StepTable } from '../components/steps/StepTable'
 import { ApiStepEditor } from '../components/api/ApiStepEditor'
 import { DuplicateToModal } from '../components/DuplicateToModal'
+import { TcHistoryPanel } from '../components/TcHistoryPanel'
 import { generateTCPreview } from '../lib/codeGenerator'
 import { generateApiTcPreview } from '../lib/apiCodeGenerator'
 import { wouldCreateCycle } from '../lib/depGraph'
@@ -185,6 +186,7 @@ export function TestCaseEditor({ projectId, featureId, testCaseId }: Props) {
   const [dupMenuOpen, setDupMenuOpen] = useState(false)
   const [showDupTo, setShowDupTo] = useState(false)
   const [pendingType, setPendingType] = useState<'ui' | 'api' | null>(null)
+  const [showHistory, setShowHistory] = useState(false)
   const dupMenuRef = useRef<HTMLDivElement>(null)
 
   const tc = state.testCases.find((t) => t.id === testCaseId)
@@ -359,6 +361,19 @@ export function TestCaseEditor({ projectId, featureId, testCaseId }: Props) {
 
         {/* Header actions */}
         <div className="flex gap-2.5 pt-7 items-center shrink-0">
+          {/* Version history button */}
+          <button
+            onClick={() => setShowHistory(true)}
+            title="Version history"
+            className="inline-flex items-center gap-1.5 border border-vsc-border bg-transparent hover:bg-vsc-hover text-vsc-muted hover:text-vsc-text transition-all duration-150 rounded-md px-3 py-1.5 text-sm font-medium"
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="shrink-0">
+              <circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.3"/>
+              <path d="M6 3.5V6l2 1.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            History
+          </button>
+
           <div ref={dupMenuRef} className="relative flex">
             <button
               onClick={handleDuplicateHere}
@@ -720,6 +735,19 @@ export function TestCaseEditor({ projectId, featureId, testCaseId }: Props) {
             This cannot be undone.
           </p>
         </Modal>
+      )}
+
+      {showHistory && (
+        <TcHistoryPanel
+          testCaseId={testCaseId}
+          projectId={projectId}
+          currentTc={tc}
+          onClose={() => setShowHistory(false)}
+          onRestore={(restoredTc) => {
+            dispatch({ type: 'UPDATE_TC', tc: { ...restoredTc, id: testCaseId, featureId, projectId } })
+            toast('Test case restored')
+          }}
+        />
       )}
     </div>
   )

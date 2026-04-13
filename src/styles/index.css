@@ -169,6 +169,12 @@
 }
 .animate-bulk-bar-in { animation: bulk-bar-in 0.22s cubic-bezier(0.16, 1, 0.3, 1) both; }
 
+@keyframes slide-in-right {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+.animate-slide-in-right { animation: slide-in-right 0.25s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
 /* ── Markdown preview ─────────────────────────────────────────────────────── */
 .md-preview {
   color: var(--vsc-text);

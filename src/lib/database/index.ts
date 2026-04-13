@@ -22,6 +22,7 @@ export * from './templates'
 export * from './snapshots'
 export * from './dependencies'
 export * from './preferences'
+export * from './versionHistory'
 
 // ── Full state loader ─────────────────────────────────────────────────────────
 

@@ -36,7 +36,7 @@ function Checkbox({
 }
 
 export function Sidebar() {
-  const { state, navigate, dispatch } = useApp()
+  const { state, navigate, dispatch, modifiedTcIds } = useApp()
   const { currentView } = state
   const { toast } = useToast()
 
@@ -490,6 +490,13 @@ export function Sidebar() {
 
                               {tc.disabled && (
                                 <span className="text-[9px] text-yellow-500/60 font-medium shrink-0 px-1">off</span>
+                              )}
+
+                              {!tc.disabled && modifiedTcIds.has(tc.id) && (
+                                <span
+                                  title="Modified since last code generation"
+                                  className="w-1.5 h-1.5 rounded-full bg-vsc-accent shrink-0 opacity-70"
+                                />
                               )}
 
                               {deps.length > 0 && !selectionMode && (

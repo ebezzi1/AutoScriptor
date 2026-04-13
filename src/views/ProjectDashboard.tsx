@@ -11,6 +11,7 @@ import { MatrixPreviewModal } from '../components/MatrixPreviewModal'
 import { CoverageMap } from '../components/CoverageMap'
 import { TestPlanModal } from '../components/TestPlanModal'
 import { DependencyGraph } from '../components/DependencyGraph'
+import { ProjectHistoryTab } from '../components/ProjectHistoryTab'
 import type { Feature, CiCdConfig } from '../types'
 
 function newFeature(projectId: string, name: string): Feature {
@@ -37,7 +38,7 @@ export function ProjectDashboard({ projectId }: Props) {
   const [showCicd, setShowCicd] = useState(false)
   const [showMatrix, setShowMatrix] = useState(false)
   const [showTestPlan, setShowTestPlan] = useState(false)
-  const [activeTab, setActiveTab] = useState<'overview' | 'coverage' | 'dependencies'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'coverage' | 'dependencies' | 'history'>('overview')
 
   const project = state.projects.find((p) => p.id === projectId)
   const features = state.features.filter((f) => f.projectId === projectId)
@@ -139,6 +140,7 @@ export function ProjectDashboard({ projectId }: Props) {
           { id: 'overview', label: 'Overview' },
           { id: 'coverage', label: 'Coverage Map' },
           { id: 'dependencies', label: 'Dependencies' },
+          { id: 'history', label: 'History' },
         ] as const).map((tab) => (
           <button
             key={tab.id}
@@ -159,6 +161,7 @@ export function ProjectDashboard({ projectId }: Props) {
                 </span>
               )
             })()}
+            {tab.id === 'history' && null}
             {tab.id === 'coverage' && (() => {
               const nonZero = features.filter((f) =>
                 testCases.some((tc) => tc.featureId === f.id)
@@ -255,6 +258,10 @@ export function ProjectDashboard({ projectId }: Props) {
           projectId={projectId}
           onNavigate={(tc) => navigate({ type: 'test-case', projectId, featureId: tc.featureId, testCaseId: tc.id })}
         />
+      )}
+
+      {activeTab === 'history' && (
+        <ProjectHistoryTab projectId={projectId} projectName={project.name} />
       )}
 
       {showRunPanel && (

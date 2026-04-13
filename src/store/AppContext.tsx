@@ -8,10 +8,18 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import type { AppState, AppAction, AppView } from '../types'
+import type { AppState, AppAction, AppView, TestCase } from '../types'
 import { useAuth } from '../components/auth/AuthProvider'
 import { useToast } from '../components/common/Toast'
 import { loadFullState, syncAction } from '../lib/database'
+import {
+  createVersionSnapshot,
+  pruneOldVersionSnapshots,
+  detectTcChangeLabel,
+  detectProjectChangeLabel,
+  getProjectIdFromAction,
+  getProjectSnapshot,
+} from '../lib/database/versionHistory'
 
 const initialState: AppState = {
   projects: [],
@@ -219,6 +227,8 @@ interface ContextValue {
   state: AppState
   dispatch: (action: AppAction) => void
   navigate: (view: AppView) => void
+  modifiedTcIds: Set<string>
+  markCodeGenerated: (projectId: string) => void
 }
 
 const AppContext = createContext<ContextValue | null>(null)
@@ -245,10 +255,31 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const { toast: showToast } = useToast()
   const [state, dispatchRaw] = useReducer(reducer, initialState)
   const [dbLoading, setDbLoading] = useState(true)
+  const [modifiedTcIds, setModifiedTcIds] = useState<Set<string>>(new Set())
+
+  // Refs for debounced TC auto-snapshots
+  const tcSnapshotTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>())
+  const tcSnapshotStartState = useRef(new Map<string, TestCase>())
 
   // Ref so the dispatch closure can read current state synchronously
   const stateRef = useRef(state)
   stateRef.current = state
+
+  const markCodeGenerated = useCallback((projectId: string) => {
+    const projectTcIds = stateRef.current.testCases
+      .filter(tc => tc.projectId === projectId)
+      .map(tc => tc.id)
+    setModifiedTcIds(prev => {
+      const next = new Set(prev)
+      projectTcIds.forEach(id => next.delete(id))
+      return next
+    })
+    // Create a generation-type project snapshot
+    const data = getProjectSnapshot(projectId, stateRef.current)
+    createVersionSnapshot(projectId, null, 'generation', 'Generated code', data, user?.id ?? null)
+      .then(() => pruneOldVersionSnapshots(projectId, null, 30))
+      .catch(console.error)
+  }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load initial workspace data from Supabase once teamId is resolved
   useEffect(() => {
@@ -272,7 +303,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       dispatchRaw(action)
 
       // Skip DB sync for pure UI actions
-      if (action.type === 'SET_VIEW' || action.type === 'HYDRATE') return
+      if (action.type === 'SET_VIEW') return
+      if (action.type === 'HYDRATE') {
+        // Clear pending snapshot timers on state reload
+        tcSnapshotTimers.current.forEach(t => clearTimeout(t))
+        tcSnapshotTimers.current.clear()
+        tcSnapshotStartState.current.clear()
+        return
+      }
 
       // Compute next state (same pure function)
       const nextState = reducer(prevState, action)
@@ -286,8 +324,50 @@ export function AppProvider({ children }: { children: ReactNode }) {
           .then((fresh) => dispatchRaw({ type: 'HYDRATE', state: fresh }))
           .catch(console.error)
       })
+
+      // ── Auto-snapshot logic ────────────────────────────────────────────────
+      if (action.type === 'UPDATE_TC') {
+        const tcId = action.tc.id
+        const prevTc = prevState.testCases.find(t => t.id === tcId)
+
+        // Track modification for sidebar dot indicator
+        setModifiedTcIds(prev => new Set([...prev, tcId]))
+
+        // Debounced TC snapshot (2s of inactivity)
+        if (prevTc && !tcSnapshotStartState.current.has(tcId)) {
+          tcSnapshotStartState.current.set(tcId, prevTc)
+        }
+        const existing = tcSnapshotTimers.current.get(tcId)
+        if (existing) clearTimeout(existing)
+
+        const timer = setTimeout(() => {
+          tcSnapshotTimers.current.delete(tcId)
+          const startTc = tcSnapshotStartState.current.get(tcId)
+          tcSnapshotStartState.current.delete(tcId)
+          const latestTc = stateRef.current.testCases.find(t => t.id === tcId)
+          if (!latestTc || !startTc) return
+          // Skip if state is identical (e.g. after a restore that left no net change)
+          if (JSON.stringify(startTc) === JSON.stringify(latestTc)) return
+          const label = detectTcChangeLabel(startTc, latestTc)
+          createVersionSnapshot(action.tc.projectId, tcId, 'auto', label, { tc: latestTc }, user?.id ?? null)
+            .then(() => pruneOldVersionSnapshots(action.tc.projectId, tcId, 50))
+            .catch(console.error)
+        }, 2000)
+
+        tcSnapshotTimers.current.set(tcId, timer)
+
+      } else {
+        const projectId = getProjectIdFromAction(action, prevState)
+        if (projectId) {
+          const label = detectProjectChangeLabel(action)
+          const data = getProjectSnapshot(projectId, nextState)
+          createVersionSnapshot(projectId, null, 'auto', label, data, user?.id ?? null)
+            .then(() => pruneOldVersionSnapshots(projectId, null, 30))
+            .catch(console.error)
+        }
+      }
     },
-    [teamId] // eslint-disable-line react-hooks/exhaustive-deps
+    [teamId, user?.id] // eslint-disable-line react-hooks/exhaustive-deps
   )
 
   const navigate = useCallback(
@@ -298,7 +378,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   if (dbLoading) return <LoadingScreen />
 
   return (
-    <AppContext.Provider value={{ state, dispatch, navigate }}>
+    <AppContext.Provider value={{ state, dispatch, navigate, modifiedTcIds, markCodeGenerated }}>
       {children}
     </AppContext.Provider>
   )

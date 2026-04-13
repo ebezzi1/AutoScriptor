@@ -14,7 +14,7 @@ interface AuthContextValue {
   role: TeamRole | null
   loading: boolean
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>
-  signUp: (email: string, password: string) => Promise<{ error: Error | null }>
+  signUp: (email: string, password: string, displayName: string) => Promise<{ error: Error | null }>
   signOut: () => Promise<void>
   refreshTeam: () => Promise<void>
 }
@@ -103,9 +103,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: error as Error | null }
   }
 
-  async function signUp(email: string, password: string) {
+  async function signUp(email: string, password: string, displayName: string) {
     console.log('[AuthProvider] signUp attempt for:', email)
-    const { error } = await authSignUp(email, password)
+    const { error } = await authSignUp(email, password, displayName)
     if (error) console.error('[AuthProvider] signUp error:', error)
     return { error: error as Error | null }
   }

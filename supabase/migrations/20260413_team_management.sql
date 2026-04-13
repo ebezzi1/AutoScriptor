@@ -55,7 +55,7 @@ CREATE POLICY "Members can view team members" ON team_members
 CREATE TABLE IF NOT EXISTS profiles (
   id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   email text,
-  full_name text,
+  display_name text,
   updated_at timestamptz DEFAULT now()
 );
 
@@ -68,9 +68,9 @@ CREATE POLICY "Users can update own profile" ON profiles FOR ALL TO authenticate
 CREATE OR REPLACE FUNCTION handle_new_user()
 RETURNS trigger AS $$
 BEGIN
-  INSERT INTO public.profiles (id, email, full_name)
+  INSERT INTO public.profiles (id, email, display_name)
   VALUES (new.id, new.email, new.raw_user_meta_data->>'full_name')
-  ON CONFLICT (id) DO UPDATE SET email = new.email;
+  ON CONFLICT (id) DO UPDATE SET email = new.email, display_name = COALESCE(new.raw_user_meta_data->>'full_name', profiles.display_name);
   RETURN new;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

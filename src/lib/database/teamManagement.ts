@@ -61,12 +61,12 @@ export async function getTeamMembers(teamId: string): Promise<TeamMember[]> {
   const userIds = rows.map((r) => r.user_id)
   const { data: profiles } = await supabase
     .from('profiles')
-    .select('id, email, full_name')
+    .select('id, email, display_name')
     .in('id', userIds)
 
-  const profileMap = new Map<string, { email: string; full_name: string | null }>()
-  for (const p of (profiles ?? []) as Array<{ id: string; email: string; full_name: string | null }>) {
-    profileMap.set(p.id, { email: p.email, full_name: p.full_name })
+  const profileMap = new Map<string, { email: string; display_name: string | null }>()
+  for (const p of (profiles ?? []) as Array<{ id: string; email: string; display_name: string | null }>) {
+    profileMap.set(p.id, { email: p.email, display_name: p.display_name })
   }
 
   return rows.map((r) => {
@@ -74,7 +74,7 @@ export async function getTeamMembers(teamId: string): Promise<TeamMember[]> {
     return {
       userId: r.user_id,
       email: profile?.email ?? r.user_id,
-      fullName: profile?.full_name ?? null,
+      fullName: profile?.display_name ?? null,
       role: r.role as TeamRole,
       joinedAt: r.joined_at,
     }
@@ -367,4 +367,13 @@ export async function transferOwnership(
     .eq('user_id', currentOwnerId)
 
   if (oldOwnerErr) throw new Error(`Failed to update current owner role: ${oldOwnerErr.message}`)
+}
+
+export async function updateDisplayName(userId: string, displayName: string): Promise<void> {
+  const { error } = await supabase
+    .from('profiles')
+    .update({ display_name: displayName })
+    .eq('id', userId)
+
+  if (error) throw new Error(`Failed to update display name: ${error.message}`)
 }

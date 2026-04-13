@@ -92,7 +92,11 @@ function ThemeToggle() {
 function UserMenu() {
   const { user, teamName, signOut } = useAuth()
   const { navigate } = useApp()
+  const { toast } = useToast()
   const [open, setOpen] = useState(false)
+  const [editingName, setEditingName] = useState(false)
+  const [nameInput, setNameInput] = useState('')
+  const [savingName, setSavingName] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -106,6 +110,22 @@ function UserMenu() {
 
   const initial = user?.email?.[0]?.toUpperCase() ?? '?'
 
+  async function handleSaveName(e: React.FormEvent) {
+    e.preventDefault()
+    if (!user || nameInput.trim().length < 2) return
+    setSavingName(true)
+    try {
+      const { updateDisplayName } = await import('../../lib/database/teamManagement')
+      await updateDisplayName(user.id, nameInput.trim())
+      toast('Display name updated')
+      setEditingName(false)
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Failed to update name', 'error')
+    } finally {
+      setSavingName(false)
+    }
+  }
+
   return (
     <div ref={ref} className="relative">
       <button
@@ -116,10 +136,52 @@ function UserMenu() {
         {initial}
       </button>
       {open && (
-        <div className="absolute top-full right-0 mt-1.5 z-50 bg-vsc-panel border border-vsc-border rounded-lg shadow-xl py-1 min-w-[180px] animate-popover-in">
+        <div className="absolute top-full right-0 mt-1.5 z-50 bg-vsc-panel border border-vsc-border rounded-lg shadow-xl py-1 min-w-[200px] animate-popover-in">
           <div className="px-3 py-2 border-b border-vsc-border/60">
-            <p className="text-xs font-semibold text-vsc-text truncate">{user?.email}</p>
-            {teamName && <p className="text-[10px] text-vsc-dim truncate mt-0.5">{teamName}</p>}
+            {editingName ? (
+              <form onSubmit={handleSaveName} className="flex gap-1.5 mt-0.5">
+                <input
+                  autoFocus
+                  type="text"
+                  minLength={2}
+                  required
+                  value={nameInput}
+                  onChange={(e) => setNameInput(e.target.value)}
+                  placeholder="Your name"
+                  className="flex-1 min-w-0 px-2 py-1 text-xs rounded bg-vsc-bg border border-vsc-accent/40 text-vsc-text focus:outline-none focus:border-vsc-accent"
+                />
+                <button
+                  type="submit"
+                  disabled={savingName || nameInput.trim().length < 2}
+                  className="px-2 py-1 text-xs rounded bg-vsc-accent text-white disabled:opacity-50"
+                >
+                  {savingName ? '…' : 'Save'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditingName(false)}
+                  className="px-2 py-1 text-xs rounded text-vsc-dim hover:text-vsc-muted hover:bg-vsc-hover"
+                >
+                  ✕
+                </button>
+              </form>
+            ) : (
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-vsc-text truncate">{user?.email}</p>
+                  {teamName && <p className="text-[10px] text-vsc-dim truncate mt-0.5">{teamName}</p>}
+                </div>
+                <button
+                  onClick={() => { setNameInput(''); setEditingName(true) }}
+                  title="Edit display name"
+                  className="shrink-0 text-vsc-dim hover:text-vsc-muted transition-colors"
+                >
+                  <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                    <path d="M8.5 1.5l2 2L3 11H1V9L8.5 1.5z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round"/>
+                  </svg>
+                </button>
+              </div>
+            )}
           </div>
           <button
             className="w-full text-left px-3 py-2 text-xs text-vsc-muted hover:text-vsc-text hover:bg-vsc-hover transition-colors flex items-center gap-2"

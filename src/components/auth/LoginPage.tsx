@@ -7,6 +7,7 @@ type Mode = 'signin' | 'signup' | 'forgot'
 export function LoginPage() {
   const { signIn, signUp } = useAuth()
   const [mode, setMode] = useState<Mode>('signin')
+  const [displayName, setDisplayName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -33,7 +34,11 @@ export function LoginPage() {
         const { error } = await signIn(email, password)
         if (error) setError(error.message)
       } else if (mode === 'signup') {
-        const { error } = await signUp(email, password)
+        if (displayName.trim().length < 2) {
+          setError('Full name must be at least 2 characters.')
+          return
+        }
+        const { error } = await signUp(email, password, displayName.trim())
         if (error) setError(error.message)
         else setMessage('Check your email to confirm your account.')
       } else {
@@ -90,6 +95,25 @@ export function LoginPage() {
           <div className="h-px bg-vsc-border -mx-6 mb-6" />
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Full Name — signup only */}
+            {isSignup && (
+              <div>
+                <label className="block text-xs font-medium text-vsc-muted mb-1.5">
+                  Full Name
+                </label>
+                <input
+                  type="text"
+                  autoComplete="name"
+                  required
+                  minLength={2}
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  placeholder="Jane Smith"
+                  className="w-full px-3 py-2.5 rounded-md bg-vsc-bg border border-vsc-border text-vsc-text text-sm placeholder:text-vsc-dim focus:outline-none focus:border-vsc-accent focus:ring-1 focus:ring-vsc-accent/30 transition-colors"
+                />
+              </div>
+            )}
+
             {/* Email */}
             <div>
               <label className="block text-xs font-medium text-vsc-muted mb-1.5 font-medium">

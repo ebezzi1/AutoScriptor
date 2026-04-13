@@ -32,6 +32,8 @@ export function toTestCase(
     authRoleId: (row.auth_role_id as string | null) ?? undefined,
     dependencies,
     disabled: (row.is_enabled as boolean) === false ? true : false,
+    source: (row.source as 'manual' | 'ai_generated' | 'imported' | null) ?? undefined,
+    sourceText: (row.source_text as string | null) ?? undefined,
   }
 }
 
@@ -54,6 +56,8 @@ function fromTestCase(tc: TestCase): Record<string, unknown> {
     test_type: tc.type ?? 'ui',
     auth_role_id: tc.authRoleId ?? null,
     is_enabled: !(tc.disabled ?? false),
+    source: tc.source ?? 'manual',
+    source_text: tc.sourceText ?? null,
   }
 }
 

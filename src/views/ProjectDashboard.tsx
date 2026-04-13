@@ -10,6 +10,7 @@ import { MatrixPreviewModal } from '../components/MatrixPreviewModal'
 import { CoverageMap } from '../components/CoverageMap'
 import { TestPlanModal } from '../components/TestPlanModal'
 import { DependencyGraph } from '../components/DependencyGraph'
+import { AiGenerateModal, SparkleIcon } from '../components/AiGenerateModal'
 import type { Feature, CiCdConfig } from '../types'
 
 function newFeature(projectId: string, name: string): Feature {
@@ -35,12 +36,14 @@ export function ProjectDashboard({ projectId }: Props) {
   const [showCicd, setShowCicd] = useState(false)
   const [showMatrix, setShowMatrix] = useState(false)
   const [showTestPlan, setShowTestPlan] = useState(false)
+  const [showAiGenerate, setShowAiGenerate] = useState(false)
   const [activeTab, setActiveTab] = useState<'overview' | 'coverage' | 'dependencies'>('overview')
 
   const project = state.projects.find((p) => p.id === projectId)
   const features = state.features.filter((f) => f.projectId === projectId)
   const testCases = state.testCases.filter((tc) => tc.projectId === projectId)
   const stepCount = testCases.reduce((acc, tc) => acc + tc.steps.length, 0)
+  const aiGeneratedCount = testCases.filter((tc) => tc.source === 'ai_generated').length
 
   if (!project) return <div className="p-10 text-vsc-muted text-sm">Project not found</div>
 
@@ -102,6 +105,10 @@ export function ProjectDashboard({ projectId }: Props) {
             </svg>
             Run
           </Btn>
+          <Btn variant="ghost" onClick={() => setShowAiGenerate(true)}>
+            <SparkleIcon size={13} className="text-vsc-accent" />
+            AI Generate
+          </Btn>
           <Btn variant="primary" onClick={() => setCreating(true)}>
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="shrink-0">
               <path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
@@ -114,10 +121,10 @@ export function ProjectDashboard({ projectId }: Props) {
       {/* Stats */}
       <div className="grid grid-cols-4 gap-px mb-8 border border-vsc-border rounded-xl overflow-hidden">
         {[
-          { label: 'Features', value: features.length },
-          { label: 'Test cases', value: testCases.length },
-          { label: 'Steps', value: stepCount },
-          { label: 'Utils', value: state.utils.filter((u) => u.projectId === projectId).length },
+          { label: 'Features', value: features.length, sub: null },
+          { label: 'Test cases', value: testCases.length, sub: aiGeneratedCount > 0 ? `${aiGeneratedCount} AI-generated` : null },
+          { label: 'Steps', value: stepCount, sub: null },
+          { label: 'Utils', value: state.utils.filter((u) => u.projectId === projectId).length, sub: null },
         ].map((stat, i) => (
           <div
             key={stat.label}
@@ -125,6 +132,12 @@ export function ProjectDashboard({ projectId }: Props) {
           >
             <div className="text-2xl font-bold text-vsc-accent tabular-nums">{stat.value}</div>
             <div className="text-2xs text-vsc-dim mt-1.5 font-semibold uppercase tracking-widest">{stat.label}</div>
+            {stat.sub && (
+              <div className="flex items-center justify-center gap-1 mt-1.5">
+                <SparkleIcon size={10} className="text-vsc-accent/60" />
+                <span className="text-2xs text-vsc-accent/60 font-medium">{stat.sub}</span>
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -185,13 +198,31 @@ export function ProjectDashboard({ projectId }: Props) {
           </div>
 
           {features.length === 0 ? (
-            <div className="border border-dashed border-vsc-border/60 rounded-xl p-14 text-center">
-              <p className="text-vsc-dim text-sm font-medium">No features yet</p>
-              <div className="mt-5">
-                <Btn variant="primary" onClick={() => setCreating(true)}>
-                  Add first feature
-                </Btn>
+            <div className="flex flex-col gap-3">
+              <div className="border border-dashed border-vsc-border/60 rounded-xl p-14 text-center">
+                <p className="text-vsc-dim text-sm font-medium">No features yet</p>
+                <div className="mt-5 flex items-center justify-center gap-2">
+                  <Btn variant="primary" onClick={() => setCreating(true)}>
+                    Add first feature
+                  </Btn>
+                </div>
               </div>
+              {/* AI quick action card */}
+              <button
+                onClick={() => setShowAiGenerate(true)}
+                className="flex items-center gap-4 border border-vsc-accent/20 bg-vsc-accent/5 hover:bg-vsc-accent/10 hover:border-vsc-accent/40 rounded-xl px-5 py-4 text-left transition-all group"
+              >
+                <div className="w-9 h-9 rounded-lg bg-vsc-accent/15 border border-vsc-accent/25 flex items-center justify-center shrink-0 group-hover:bg-vsc-accent/25 transition-colors">
+                  <SparkleIcon size={16} className="text-vsc-accent" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-vsc-text">Generate tests from requirements</p>
+                  <p className="text-xs text-vsc-muted mt-0.5">Paste user stories or acceptance criteria — Claude generates test cases automatically</p>
+                </div>
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="ml-auto text-vsc-dim shrink-0 group-hover:text-vsc-accent transition-colors">
+                  <path d="M5 3l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
             </div>
           ) : (
             <div className="flex flex-col gap-2">
@@ -311,6 +342,13 @@ export function ProjectDashboard({ projectId }: Props) {
             />
           </Field>
         </Modal>
+      )}
+
+      {showAiGenerate && (
+        <AiGenerateModal
+          projectId={projectId}
+          onClose={() => setShowAiGenerate(false)}
+        />
       )}
     </div>
   )

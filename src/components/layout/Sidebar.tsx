@@ -4,6 +4,7 @@ import { Btn } from '../common/Btn'
 import { DuplicateToModal } from '../DuplicateToModal'
 import { BulkTcBar } from '../BulkTcBar'
 import { useToast } from '../common/Toast'
+import { SparkleIcon } from '../AiGenerateModal'
 import { getEnvColor } from '../../types'
 import type { TestCase } from '../../types'
 
@@ -443,7 +444,7 @@ export function Sidebar() {
                               )}
 
                               <button
-                                className={`flex-1 text-left text-xs py-1 px-1.5 truncate transition-colors ${
+                                className={`flex-1 text-left text-xs py-1 px-1.5 truncate transition-colors flex items-center gap-1 min-w-0 ${
                                   tc.disabled
                                     ? 'line-through opacity-40'
                                     : isActiveTc
@@ -463,7 +464,10 @@ export function Sidebar() {
                                   })
                                 }}
                               >
-                                {tc.name}
+                                {tc.source === 'ai_generated' && (
+                                  <SparkleIcon size={9} className="text-vsc-accent/60 shrink-0" />
+                                )}
+                                <span className="truncate">{tc.name}</span>
                               </button>
 
                               {tc.disabled && (

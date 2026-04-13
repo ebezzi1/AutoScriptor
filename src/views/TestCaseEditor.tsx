@@ -10,6 +10,7 @@ import { ChipInput } from '../components/common/ChipInput'
 import { StepTable } from '../components/steps/StepTable'
 import { ApiStepEditor } from '../components/api/ApiStepEditor'
 import { DuplicateToModal } from '../components/DuplicateToModal'
+import { SparkleIcon } from '../components/AiGenerateModal'
 import { generateTCPreview } from '../lib/codeGenerator'
 import { generateApiTcPreview } from '../lib/apiCodeGenerator'
 import { wouldCreateCycle } from '../lib/depGraph'
@@ -326,6 +327,12 @@ export function TestCaseEditor({ projectId, featureId, testCaseId }: Props) {
             <span className={`text-xs px-2 py-0.5 rounded-full font-semibold border ${PRIORITY_COLORS[tc.priority]}`}>
               {tc.priority}
             </span>
+            {tc.source === 'ai_generated' && (
+              <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border border-vsc-accent/20 bg-vsc-accent/8 text-vsc-accent/70 font-medium">
+                <SparkleIcon size={10} className="text-vsc-accent/70" />
+                AI Generated
+              </span>
+            )}
             <span className="text-xs text-vsc-dim tabular-nums">
               {stepCount} {isUI ? 'step' : 'request'}{stepCount !== 1 ? 's' : ''}
             </span>

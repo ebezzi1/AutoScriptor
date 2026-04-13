@@ -6,6 +6,7 @@ import { Btn } from '../components/common/Btn'
 import { Field, Input } from '../components/common/Field'
 import { ChipInput } from '../components/common/ChipInput'
 import { StepTable } from '../components/steps/StepTable'
+import { AiGenerateModal, SparkleIcon } from '../components/AiGenerateModal'
 import { PRIORITY_COLORS } from '../types'
 import type { TestCase, Feature, Priority } from '../types'
 
@@ -37,6 +38,7 @@ export function FeatureView({ projectId, featureId }: Props) {
   const [tcName, setTcName] = useState('')
   const [tcType, setTcType] = useState<'ui' | 'api'>('ui')
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
+  const [showAiGenerate, setShowAiGenerate] = useState(false)
 
   const feature = state.features.find((f) => f.id === featureId)
   const testCases = state.testCases.filter((tc) => tc.featureId === featureId)
@@ -161,6 +163,10 @@ export function FeatureView({ projectId, featureId }: Props) {
           <h2 className="text-xs font-semibold text-vsc-dim uppercase tracking-widest">Test cases</h2>
           <span className="text-xs text-vsc-accent font-bold tabular-nums">{testCases.length}</span>
           <div className="flex-1 h-px bg-vsc-border/60" />
+          <Btn variant="ghost" size="sm" onClick={() => setShowAiGenerate(true)}>
+            <SparkleIcon size={12} className="text-vsc-accent" />
+            AI Generate
+          </Btn>
           <Btn variant="primary" size="sm" onClick={() => setCreatingTC(true)}>
             <svg width="11" height="11" viewBox="0 0 11 11" fill="none" className="shrink-0">
               <path d="M5.5 1v9M1 5.5h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
@@ -283,6 +289,14 @@ export function FeatureView({ projectId, featureId }: Props) {
             This will permanently delete the test case and all its steps.
           </p>
         </Modal>
+      )}
+
+      {showAiGenerate && (
+        <AiGenerateModal
+          projectId={projectId}
+          initialFeatureId={featureId}
+          onClose={() => setShowAiGenerate(false)}
+        />
       )}
     </div>
   )

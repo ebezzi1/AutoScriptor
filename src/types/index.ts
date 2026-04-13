@@ -197,6 +197,10 @@ export interface TestCase {
   dependencies?: string[]
   /** When true, excluded from code generation, matrix export, and coverage counts */
   disabled?: boolean
+  /** How this test case was created */
+  source?: 'manual' | 'ai_generated' | 'imported'
+  /** Original requirement text used to generate this TC (AI-generated only) */
+  sourceText?: string
 }
 
 // Navigation state

@@ -3,15 +3,20 @@ import type { User, Session } from '@supabase/supabase-js'
 import { supabase } from '../../lib/supabase'
 import { signIn as authSignIn, signUp as authSignUp, signOut as authSignOut } from '../../lib/auth'
 import { ensureTeam } from '../../lib/database/teams'
+import { getMyRole, getTeamInfo } from '../../lib/database/teamManagement'
+import type { TeamRole } from '../../lib/database/teamManagement'
 
 interface AuthContextValue {
   user: User | null
   session: Session | null
   teamId: string | null
+  teamName: string | null
+  role: TeamRole | null
   loading: boolean
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>
   signUp: (email: string, password: string) => Promise<{ error: Error | null }>
   signOut: () => Promise<void>
+  refreshTeam: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -20,15 +25,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [session, setSession] = useState<Session | null>(null)
   const [teamId, setTeamId] = useState<string | null>(null)
+  const [teamName, setTeamName] = useState<string | null>(null)
+  const [role, setRole] = useState<TeamRole | null>(null)
   const [loading, setLoading] = useState(true)
 
   async function resolveTeam(userId: string): Promise<void> {
     try {
       const id = await ensureTeam(userId)
       setTeamId(id)
+
+      const [myRole, teamInfo] = await Promise.all([
+        getMyRole(id, userId),
+        getTeamInfo(id).catch(() => null),
+      ])
+      setRole(myRole)
+      setTeamName(teamInfo?.name ?? null)
     } catch (err) {
       console.error('[AuthProvider] ensureTeam failed:', err)
       // Leave teamId null — AppContext will show an error
+    }
+  }
+
+  async function refreshTeam(): Promise<void> {
+    if (!user) return
+    try {
+      const id = await ensureTeam(user.id)
+      setTeamId(id)
+
+      const [myRole, teamInfo] = await Promise.all([
+        getMyRole(id, user.id),
+        getTeamInfo(id).catch(() => null),
+      ])
+      setRole(myRole)
+      setTeamName(teamInfo?.name ?? null)
+    } catch (err) {
+      console.error('[AuthProvider] refreshTeam failed:', err)
     }
   }
 
@@ -57,6 +88,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await resolveTeam(currentUser.id)
       } else if (event === 'SIGNED_OUT') {
         setTeamId(null)
+        setTeamName(null)
+        setRole(null)
       }
     })
 
@@ -82,7 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, session, teamId, loading, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{ user, session, teamId, teamName, role, loading, signIn, signUp, signOut, refreshTeam }}>
       {children}
     </AuthContext.Provider>
   )

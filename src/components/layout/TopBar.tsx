@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useApp } from '../../store/AppContext'
+import { useAuth } from '../auth/AuthProvider'
+import { usePermissions } from '../../hooks/usePermissions'
 import { useToast } from '../common/Toast'
 import { useTheme, type Theme } from '../../store/ThemeContext'
 import { Btn } from '../common/Btn'
@@ -87,8 +89,70 @@ function ThemeToggle() {
   )
 }
 
+function UserMenu() {
+  const { user, teamName, signOut } = useAuth()
+  const { navigate } = useApp()
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return undefined
+    const handle = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handle)
+    return () => document.removeEventListener('mousedown', handle)
+  }, [open])
+
+  const initial = user?.email?.[0]?.toUpperCase() ?? '?'
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-7 h-7 rounded-full bg-vsc-accent/20 border border-vsc-accent/30 flex items-center justify-center text-xs font-bold text-vsc-accent hover:bg-vsc-accent/30 transition-colors"
+        title={user?.email}
+      >
+        {initial}
+      </button>
+      {open && (
+        <div className="absolute top-full right-0 mt-1.5 z-50 bg-vsc-panel border border-vsc-border rounded-lg shadow-xl py-1 min-w-[180px] animate-popover-in">
+          <div className="px-3 py-2 border-b border-vsc-border/60">
+            <p className="text-xs font-semibold text-vsc-text truncate">{user?.email}</p>
+            {teamName && <p className="text-[10px] text-vsc-dim truncate mt-0.5">{teamName}</p>}
+          </div>
+          <button
+            className="w-full text-left px-3 py-2 text-xs text-vsc-muted hover:text-vsc-text hover:bg-vsc-hover transition-colors flex items-center gap-2"
+            onClick={() => { navigate({ type: 'team-settings' }); setOpen(false) }}
+          >
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none" className="shrink-0">
+              <circle cx="5" cy="4" r="2" stroke="currentColor" strokeWidth="1.4"/>
+              <path d="M1 11c0-2.2 1.8-4 4-4s4 1.8 4 4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+              <circle cx="10" cy="4" r="1.5" stroke="currentColor" strokeWidth="1.3"/>
+              <path d="M10 8.5c1.4.3 2.5 1.5 2.5 3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+            </svg>
+            Team Settings
+          </button>
+          <div className="h-px bg-vsc-border/60 my-1" />
+          <button
+            className="w-full text-left px-3 py-2 text-xs text-vsc-danger hover:bg-vsc-danger-light transition-colors flex items-center gap-2"
+            onClick={() => { signOut(); setOpen(false) }}
+          >
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none" className="shrink-0">
+              <path d="M5 2H2a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+              <path d="M8.5 9l3-2.5L8.5 4M11.5 6.5H5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            Sign Out
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function TopBar() {
   const { state, dispatch, navigate } = useApp()
+  const { isReadOnly } = usePermissions()
   const { toast } = useToast()
   const { currentView } = state
   const [generating, setGenerating] = useState(false)
@@ -109,7 +173,9 @@ export function TopBar() {
   }, [exportMenuOpen])
 
   const activeProjectId =
-    currentView.type !== 'projects' ? currentView.projectId : null
+    (currentView.type !== 'projects' && currentView.type !== 'team-settings')
+      ? (currentView as { projectId: string }).projectId
+      : null
   const project = activeProjectId
     ? state.projects.find((p) => p.id === activeProjectId)
     : null
@@ -231,6 +297,11 @@ export function TopBar() {
             </span>
           ))
         )}
+        {isReadOnly && (
+          <span className="text-[10px] font-semibold text-vsc-muted border border-vsc-border rounded-full px-2 py-0.5 ml-2 shrink-0">
+            View only
+          </span>
+        )}
       </div>
 
       {/* Right-side controls */}
@@ -339,6 +410,7 @@ export function TopBar() {
         )}
 
         <ThemeToggle />
+        <UserMenu />
       </div>
     </header>
 

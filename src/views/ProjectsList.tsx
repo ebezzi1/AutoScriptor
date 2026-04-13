@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Trash2 } from 'lucide-react'
 import { useApp } from '../store/AppContext'
 import { useToast } from '../components/common/Toast'
+import { usePermissions as _usePermissions } from '../hooks/usePermissions'
 import { Modal } from '../components/common/Modal'
 import { Btn } from '../components/common/Btn'
 import { Field, Input, Select } from '../components/common/Field'
@@ -64,6 +65,7 @@ const LANG_BADGE: Record<string, { label: string; className: string }> = {
 export function ProjectsList() {
   const { state, dispatch, navigate } = useApp()
   const { toast } = useToast()
+  const { isReadOnly } = _usePermissions()
   const [creating, setCreating] = useState(false)
   const [name, setName] = useState('')
   const [lang, setLang] = useState<'typescript' | 'javascript'>('typescript')
@@ -101,12 +103,14 @@ export function ProjectsList() {
             Manage your Playwright test suites
           </p>
         </div>
-        <Btn variant="primary" size="md" onClick={() => setCreating(true)}>
-          <svg width="13" height="13" viewBox="0 0 13 13" fill="none" className="shrink-0">
-            <path d="M6.5 1v11M1 6.5h11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-          </svg>
-          New project
-        </Btn>
+        {!isReadOnly && (
+          <Btn variant="primary" size="md" onClick={() => setCreating(true)}>
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none" className="shrink-0">
+              <path d="M6.5 1v11M1 6.5h11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
+            New project
+          </Btn>
+        )}
       </div>
 
       {state.projects.length === 0 ? (
@@ -115,10 +119,12 @@ export function ProjectsList() {
             <span className="text-vsc-accent text-sm font-bold">PW</span>
           </div>
           <p className="text-vsc-muted text-sm font-medium">No projects yet</p>
-          <p className="text-vsc-dim text-xs mt-1">Create one to get started</p>
-          <Btn variant="primary" size="md" className="mt-6" onClick={() => setCreating(true)}>
-            Create your first project
-          </Btn>
+          <p className="text-vsc-dim text-xs mt-1">{isReadOnly ? 'No projects have been created yet' : 'Create one to get started'}</p>
+          {!isReadOnly && (
+            <Btn variant="primary" size="md" className="mt-6" onClick={() => setCreating(true)}>
+              Create your first project
+            </Btn>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

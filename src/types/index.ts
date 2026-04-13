@@ -197,6 +197,10 @@ export interface TestCase {
   dependencies?: string[]
   /** When true, excluded from code generation, matrix export, and coverage counts */
   disabled?: boolean
+  /** Origin of this test case */
+  source?: 'manual' | 'ai_generated' | 'imported'
+  /** Optional context/prompt used to generate this test case */
+  sourceText?: string
 }
 
 // Navigation state
@@ -207,6 +211,7 @@ export type AppView =
   | { type: 'feature'; projectId: string; featureId: string }
   | { type: 'test-case'; projectId: string; featureId: string; testCaseId: string }
   | { type: 'utils'; projectId: string }
+  | { type: 'team-settings' }
 
 export interface AppState {
   projects: Project[]

@@ -41,7 +41,9 @@ export function Sidebar() {
   const { toast } = useToast()
 
   const activeProjectId =
-    currentView.type !== 'projects' ? currentView.projectId : null
+    (currentView.type !== 'projects' && currentView.type !== 'team-settings')
+      ? (currentView as { projectId: string }).projectId
+      : null
   const project = activeProjectId
     ? state.projects.find((p) => p.id === activeProjectId)
     : null
@@ -259,6 +261,7 @@ export function Sidebar() {
 
       {/* Main nav */}
       {!project ? (
+        <>
         <div className="flex-1 overflow-y-auto p-3">
           <p className="text-2xs text-vsc-dim font-semibold uppercase tracking-widest mb-2 px-2 pt-1">
             Projects
@@ -269,7 +272,7 @@ export function Sidebar() {
             <div className="flex flex-col gap-1">
               {state.projects.map((p) => {
                 const isActive =
-                  currentView.type !== 'projects' && currentView.projectId === p.id
+                  currentView.type !== 'projects' && currentView.type !== 'team-settings' && (currentView as { projectId: string }).projectId === p.id
                 return (
                   <button
                     key={p.id}
@@ -287,6 +290,25 @@ export function Sidebar() {
             </div>
           )}
         </div>
+        <div className="border-t border-vsc-border p-2">
+          <button
+            className={`w-full text-left text-xs px-3 py-2 rounded-md transition-all flex items-center gap-2.5 font-medium ${
+              currentView.type === 'team-settings'
+                ? 'text-vsc-accent bg-vsc-accent-light'
+                : 'text-vsc-muted hover:text-vsc-text hover:bg-vsc-hover'
+            }`}
+            onClick={() => navigate({ type: 'team-settings' })}
+          >
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none" className="shrink-0">
+              <circle cx="5" cy="4" r="2" stroke="currentColor" strokeWidth="1.4"/>
+              <path d="M1 11c0-2.2 1.8-4 4-4s4 1.8 4 4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+              <circle cx="10" cy="4" r="1.5" stroke="currentColor" strokeWidth="1.3"/>
+              <path d="M10 8.5c1.4.3 2.5 1.5 2.5 3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+            </svg>
+            Manage Team
+          </button>
+        </div>
+        </>
       ) : (
         <div className="flex-1 overflow-y-auto">
           {/* Project info */}
@@ -555,6 +577,22 @@ export function Sidebar() {
       {/* Bottom nav */}
       {project && (
         <div className="border-t border-vsc-border p-2 space-y-0.5">
+          <button
+            className={`w-full text-left text-xs px-3 py-2 rounded-md transition-all flex items-center gap-2.5 font-medium ${
+              currentView.type === 'team-settings'
+                ? 'text-vsc-accent bg-vsc-accent-light'
+                : 'text-vsc-muted hover:text-vsc-text hover:bg-vsc-hover'
+            }`}
+            onClick={() => navigate({ type: 'team-settings' })}
+          >
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none" className="shrink-0">
+              <circle cx="5" cy="4" r="2" stroke="currentColor" strokeWidth="1.4"/>
+              <path d="M1 11c0-2.2 1.8-4 4-4s4 1.8 4 4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+              <circle cx="10" cy="4" r="1.5" stroke="currentColor" strokeWidth="1.3"/>
+              <path d="M10 8.5c1.4.3 2.5 1.5 2.5 3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+            </svg>
+            Manage Team
+          </button>
           <button
             className={`w-full text-left text-xs px-3 py-2 rounded-md transition-all flex items-center gap-2.5 font-medium ${
               currentView.type === 'utils'

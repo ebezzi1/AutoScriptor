@@ -3,9 +3,11 @@ import { createRoot } from 'react-dom/client'
 import './styles/index.css'
 import { ThemeProvider } from './store/ThemeContext'
 import { AppProvider } from './store/AppContext'
-import { ToastProvider } from './components/common/Toast'
+import { ToastProvider, useToast } from './components/common/Toast'
 import { AuthProvider, useAuth } from './components/auth/AuthProvider'
 import { LoginPage } from './components/auth/LoginPage'
+import { TeamOnboarding } from './views/TeamOnboarding'
+import { InviteAccept } from './views/InviteAccept'
 import App from './App'
 
 function Spinner() {
@@ -20,9 +22,14 @@ function Spinner() {
 }
 
 function AuthGate() {
-  const { user, loading } = useAuth()
+  const { user, loading, teamId } = useAuth()
   if (loading) return <Spinner />
   if (!user) return <LoginPage />
+  if (!teamId) return (
+    <ToastProvider>
+      <TeamOnboarding />
+    </ToastProvider>
+  )
   return (
     <ToastProvider>
       <AppProvider>
@@ -32,11 +39,24 @@ function AuthGate() {
   )
 }
 
+// Check if we are on an invite path
+const invitePathMatch = window.location.pathname.match(/^\/invite\/([^/?#]+)/)
+const inviteToken = invitePathMatch ? invitePathMatch[1] : null
+
+function InviteGate() {
+  if (!inviteToken) return null
+  return (
+    <ToastProvider>
+      <InviteAccept token={inviteToken} />
+    </ToastProvider>
+  )
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ThemeProvider>
       <AuthProvider>
-        <AuthGate />
+        {inviteToken ? <InviteGate /> : <AuthGate />}
       </AuthProvider>
     </ThemeProvider>
   </StrictMode>,

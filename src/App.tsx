@@ -8,6 +8,7 @@ import { ProjectSettings } from './views/ProjectSettings'
 import { FeatureView } from './views/FeatureView'
 import { TestCaseEditor } from './views/TestCaseEditor'
 import { UtilsView } from './views/UtilsView'
+import { TeamSettings } from './views/TeamSettings'
 import { getEnvColor } from './types'
 
 function MainContent() {
@@ -38,6 +39,8 @@ function MainContent() {
       )
     case 'utils':
       return <UtilsView projectId={currentView.projectId} />
+    case 'team-settings':
+      return <TeamSettings />
   }
 }
 
@@ -56,7 +59,9 @@ export default function App() {
   }, [])
 
   // Compute active env color for the main content accent
-  const activeProjectId = state.currentView.type !== 'projects' ? state.currentView.projectId : null
+  const activeProjectId = (state.currentView.type !== 'projects' && state.currentView.type !== 'team-settings')
+    ? (state.currentView as { projectId: string }).projectId
+    : null
   const activeProject = activeProjectId ? state.projects.find((p) => p.id === activeProjectId) : null
   const activeEnv = activeProject?.environments?.find((e) => e.id === activeProject?.activeEnvironmentId) ?? null
   const envHex = activeEnv ? getEnvColor(activeEnv) : null

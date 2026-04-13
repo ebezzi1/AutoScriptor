@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useApp } from '../store/AppContext'
 import { useToast } from '../components/common/Toast'
+import { usePermissions } from '../hooks/usePermissions'
 import { Modal } from '../components/common/Modal'
 import { Btn } from '../components/common/Btn'
 import { Field, Input } from '../components/common/Field'
@@ -29,6 +30,7 @@ interface Props { projectId: string }
 export function ProjectDashboard({ projectId }: Props) {
   const { state, dispatch, navigate } = useApp()
   const { toast } = useToast()
+  const { isReadOnly } = usePermissions()
   const [creating, setCreating] = useState(false)
   const [featureName, setFeatureName] = useState('')
   const [showRunPanel, setShowRunPanel] = useState(false)
@@ -102,12 +104,14 @@ export function ProjectDashboard({ projectId }: Props) {
             </svg>
             Run
           </Btn>
-          <Btn variant="primary" onClick={() => setCreating(true)}>
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="shrink-0">
-              <path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-            </svg>
-            Add feature
-          </Btn>
+          {!isReadOnly && (
+            <Btn variant="primary" onClick={() => setCreating(true)}>
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="shrink-0">
+                <path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
+              Add feature
+            </Btn>
+          )}
         </div>
       </div>
 

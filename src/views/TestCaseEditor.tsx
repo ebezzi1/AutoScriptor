@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useApp } from '../store/AppContext'
 import { useToast } from '../components/common/Toast'
+import { usePermissions } from '../hooks/usePermissions'
 import { Btn } from '../components/common/Btn'
 import { Modal } from '../components/common/Modal'
 import { CodeBlock } from '../components/CodeBlock'
@@ -176,6 +177,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 export function TestCaseEditor({ projectId, featureId, testCaseId }: Props) {
   const { state, dispatch, navigate } = useApp()
   const { toast } = useToast()
+  const { isReadOnly } = usePermissions()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
   const [showRun, setShowRun] = useState(false)
@@ -603,22 +605,24 @@ export function TestCaseEditor({ projectId, featureId, testCaseId }: Props) {
         <SectionLabel>
           {isUI ? 'Steps' : 'API Requests'}
         </SectionLabel>
-        {isUI ? (
-          <StepTable
-            steps={tc.steps}
-            onChange={(steps) => update({ steps })}
-            variables={projectVars}
-            utils={projectUtils}
-            availableUtils={projectUtils}
-            projectId={projectId}
-          />
-        ) : (
-          <ApiStepEditor
-            steps={tc.apiSteps ?? []}
-            onChange={(apiSteps) => update({ apiSteps })}
-            variables={projectVars}
-          />
-        )}
+        <div className={isReadOnly ? 'pointer-events-none opacity-60' : undefined}>
+          {isUI ? (
+            <StepTable
+              steps={tc.steps}
+              onChange={(steps) => update({ steps })}
+              variables={projectVars}
+              utils={projectUtils}
+              availableUtils={projectUtils}
+              projectId={projectId}
+            />
+          ) : (
+            <ApiStepEditor
+              steps={tc.apiSteps ?? []}
+              onChange={(apiSteps) => update({ apiSteps })}
+              variables={projectVars}
+            />
+          )}
+        </div>
       </div>
 
       {/* ── Section E: Code Preview (collapsible) ───────────────────────────── */}

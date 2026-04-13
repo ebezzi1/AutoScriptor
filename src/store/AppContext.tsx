@@ -349,7 +349,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
           // Skip if state is identical (e.g. after a restore that left no net change)
           if (JSON.stringify(startTc) === JSON.stringify(latestTc)) return
           const label = detectTcChangeLabel(startTc, latestTc)
-          createVersionSnapshot(action.tc.projectId, tcId, 'auto', label, { tc: latestTc }, user?.id ?? null)
+          // Deep-clone so the stored snapshot is never affected by later mutations
+          const tcClone = JSON.parse(JSON.stringify(latestTc))
+          createVersionSnapshot(action.tc.projectId, tcId, 'auto', label, { tc: tcClone }, user?.id ?? null)
             .then(() => pruneOldVersionSnapshots(action.tc.projectId, tcId, 50))
             .catch(console.error)
         }, 2000)
@@ -360,7 +362,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const projectId = getProjectIdFromAction(action, prevState)
         if (projectId) {
           const label = detectProjectChangeLabel(action)
-          const data = getProjectSnapshot(projectId, nextState)
+          // Deep-clone so the snapshot is never affected by later state mutations
+          const data = JSON.parse(JSON.stringify(getProjectSnapshot(projectId, nextState)))
           createVersionSnapshot(projectId, null, 'auto', label, data, user?.id ?? null)
             .then(() => pruneOldVersionSnapshots(projectId, null, 30))
             .catch(console.error)

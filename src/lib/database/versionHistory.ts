@@ -21,6 +21,13 @@ export interface VersionSnapshot {
 }
 
 function toVersionSnapshot(row: Record<string, unknown>): VersionSnapshot {
+  // jsonb columns come back as parsed objects from supabase-js, but guard
+  // against double-stringified payloads just in case
+  let data = row.data ?? {}
+  if (typeof data === 'string') {
+    try { data = JSON.parse(data) } catch { data = {} }
+  }
+
   return {
     id: row.id as string,
     projectId: row.project_id as string,
@@ -29,7 +36,7 @@ function toVersionSnapshot(row: Record<string, unknown>): VersionSnapshot {
     snapshotType: row.snapshot_type as 'auto' | 'manual' | 'generation',
     label: row.label as string,
     changeDescription: row.change_description as string | null,
-    data: (row.data ?? {}) as Record<string, unknown>,
+    data: data as Record<string, unknown>,
     isPinned: row.is_pinned as boolean,
     createdAt: row.created_at as string,
   }
@@ -46,7 +53,7 @@ export async function createVersionSnapshot(
   isPinned = false
 ): Promise<VersionSnapshot | null> {
   const { data: row, error } = await supabase
-    .from('version_history')
+    .from('snapshots')
     .insert({
       project_id: projectId,
       test_case_id: testCaseId,
@@ -72,7 +79,7 @@ export async function getVersionSnapshots(
   limit = 50
 ): Promise<VersionSnapshot[]> {
   let query = supabase
-    .from('version_history')
+    .from('snapshots')
     .select('*')
     .eq('project_id', projectId)
     .order('created_at', { ascending: false })
@@ -92,11 +99,11 @@ export async function getVersionSnapshots(
 }
 
 export async function deleteVersionSnapshot(id: string): Promise<void> {
-  await supabase.from('version_history').delete().eq('id', id)
+  await supabase.from('snapshots').delete().eq('id', id)
 }
 
 export async function pinVersionSnapshot(id: string, isPinned: boolean): Promise<void> {
-  await supabase.from('version_history').update({ is_pinned: isPinned }).eq('id', id)
+  await supabase.from('snapshots').update({ is_pinned: isPinned }).eq('id', id)
 }
 
 export async function pruneOldVersionSnapshots(
@@ -105,7 +112,7 @@ export async function pruneOldVersionSnapshots(
   limit: number
 ): Promise<void> {
   let query = supabase
-    .from('version_history')
+    .from('snapshots')
     .select('id')
     .eq('project_id', projectId)
     .eq('is_pinned', false)
@@ -121,7 +128,7 @@ export async function pruneOldVersionSnapshots(
   const { data } = await query
   if (!data || data.length === 0) return
   const ids = data.map((r: Record<string, unknown>) => r.id as string)
-  await supabase.from('version_history').delete().in('id', ids)
+  await supabase.from('snapshots').delete().in('id', ids)
 }
 
 // ── Change label detection ────────────────────────────────────────────────────

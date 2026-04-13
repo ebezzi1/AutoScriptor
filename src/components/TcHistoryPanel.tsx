@@ -118,6 +118,40 @@ export function TcHistoryPanel({ testCaseId, projectId, currentTc, onClose, onRe
 
   const selectedSnapshot = snapshots.find(s => s.id === selectedId) ?? null
 
+  const handleSelectSnapshot = (snap: VersionSnapshot, isCurrentlySelected: boolean) => {
+    if (isCurrentlySelected) {
+      setSelectedId(null)
+      return
+    }
+    const rawData = snap.data
+    // Ensure nested objects survived the jsonb round-trip (guard against string payloads)
+    const parsedData: Record<string, unknown> =
+      typeof rawData === 'string'
+        ? (() => { try { return JSON.parse(rawData) } catch { return {} } })()
+        : rawData ?? {}
+    const parsedTc = parsedData.tc as TestCase | undefined
+    console.log('[VersionHistory] Snapshot selected:', {
+      id: snap.id,
+      label: snap.label,
+      createdAt: snap.createdAt,
+      rawData,
+      parsedData,
+      parsedTc,
+      parsedTcStepCount: parsedTc?.steps?.length ?? 0,
+      parsedTcApiStepCount: parsedTc?.apiSteps?.length ?? 0,
+      currentTc,
+      currentTcStepCount: currentTc.steps?.length ?? 0,
+      currentTcApiStepCount: currentTc.apiSteps?.length ?? 0,
+    })
+    // If data came back as a string (double-stringified), fix it in-place in state
+    if (typeof rawData === 'string') {
+      setSnapshots(prev =>
+        prev.map(s => s.id === snap.id ? { ...s, data: parsedData } : s)
+      )
+    }
+    setSelectedId(snap.id)
+  }
+
   const load = useCallback(async () => {
     setLoading(true)
     const snaps = await getVersionSnapshots(projectId, testCaseId, 50)
@@ -147,7 +181,7 @@ export function TcHistoryPanel({ testCaseId, projectId, currentTc, onClose, onRe
     await createVersionSnapshot(
       projectId, testCaseId, 'manual',
       manualLabel.trim() || `Snapshot at ${formatAbsoluteTime(new Date().toISOString())}`,
-      { tc: currentTc },
+      { tc: JSON.parse(JSON.stringify(currentTc)) },
       user?.id ?? null,
       null,
       true // pinned
@@ -177,11 +211,11 @@ export function TcHistoryPanel({ testCaseId, projectId, currentTc, onClose, onRe
     const snapTc = (snap.data as { tc?: TestCase }).tc
     if (!snapTc) { toast('Snapshot data is incomplete', 'error'); return }
 
-    // Save pre-restore state as a pinned snapshot
+    // Save pre-restore state as a pinned snapshot (deep-clone to freeze current state)
     await createVersionSnapshot(
       projectId, testCaseId, 'auto',
       `Before restore to "${snap.label}"`,
-      { tc: currentTc },
+      { tc: JSON.parse(JSON.stringify(currentTc)) },
       user?.id ?? null, null, true
     )
 
@@ -361,7 +395,7 @@ export function TcHistoryPanel({ testCaseId, projectId, currentTc, onClose, onRe
                             ? 'border-vsc-accent/60 bg-vsc-accent/5'
                             : 'border-vsc-border bg-vsc-bg hover:border-vsc-accent/30 hover:bg-vsc-hover/50'
                         }`}
-                        onClick={() => setSelectedId(isSelected ? null : snap.id)}
+                        onClick={() => handleSelectSnapshot(snap, isSelected)}
                       >
                         <div className="px-4 py-3">
                           <div className="flex items-start justify-between gap-2">

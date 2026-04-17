@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useApp } from '../store/AppContext'
 import { useToast } from '../components/common/Toast'
 import { usePermissions } from '../hooks/usePermissions'
+import { useAgent } from '../store/AgentContext'
 import { Modal } from '../components/common/Modal'
 import { Btn } from '../components/common/Btn'
 import { Field, Input } from '../components/common/Field'
@@ -28,10 +29,16 @@ function newFeature(projectId: string, name: string): Feature {
 
 interface Props { projectId: string }
 
+const BANNER_DISMISSED_KEY = 'agent-banner-dismissed'
+
 export function ProjectDashboard({ projectId }: Props) {
   const { state, dispatch, navigate } = useApp()
   const { toast } = useToast()
   const { isReadOnly } = usePermissions()
+  const { isConnected } = useAgent()
+  const [bannerDismissed, setBannerDismissed] = useState(() => {
+    try { return localStorage.getItem(BANNER_DISMISSED_KEY) === '1' } catch { return false }
+  })
   const [creating, setCreating] = useState(false)
   const [featureName, setFeatureName] = useState('')
   const [showRunPanel, setShowRunPanel] = useState(false)
@@ -57,8 +64,34 @@ export function ProjectDashboard({ projectId }: Props) {
     setFeatureName('')
   }
 
+  const dismissBanner = () => {
+    setBannerDismissed(true)
+    try { localStorage.setItem(BANNER_DISMISSED_KEY, '1') } catch { /* ignore */ }
+  }
+
   return (
     <div className="p-10 max-w-4xl">
+      {/* Agent not-running banner */}
+      {!isConnected && !bannerDismissed && (
+        <div className="flex items-center gap-3 mb-6 px-4 py-3 rounded-lg border border-vsc-border bg-vsc-panel text-xs text-vsc-muted">
+          <span className="w-2 h-2 rounded-full bg-vsc-border shrink-0" />
+          <span className="flex-1">
+            Install the agent to run tests:{' '}
+            <code className="font-mono text-vsc-text bg-vsc-hover px-1.5 py-0.5 rounded text-[10px]">
+              npm i -g autoscriptor-agent &amp;&amp; autoscriptor-agent start
+            </code>
+          </span>
+          <button
+            onClick={dismissBanner}
+            className="text-vsc-dim hover:text-vsc-muted transition-colors shrink-0"
+            title="Dismiss"
+          >
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <path d="M1 1l8 8M9 1L1 9" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+            </svg>
+          </button>
+        </div>
+      )}
       {/* Header */}
       <div className="flex items-start justify-between mb-10">
         <div>
@@ -265,7 +298,7 @@ export function ProjectDashboard({ projectId }: Props) {
       )}
 
       {showRunPanel && (
-        <BulkRunPanel features={features} testCases={testCases} onClose={() => setShowRunPanel(false)} />
+        <BulkRunPanel project={project} features={features} testCases={testCases} onClose={() => setShowRunPanel(false)} />
       )}
 
       {showTestPlan && (

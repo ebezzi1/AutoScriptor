@@ -32,6 +32,7 @@ export function toProject(
     environments,
     activeEnvironmentId: (row.active_environment_id as string | null) ?? null,
     auth,
+    localDirectory: (row.local_directory as string | null) ?? undefined,
     cicd: row.cicd_platforms != null
       ? {
           platforms: ((row.cicd_platforms as string[]) ?? []) as CiCdConfig['platforms'],
@@ -72,6 +73,7 @@ function projectFields(project: Project): Record<string, unknown> {
     cicd_scheduled_cron: project.cicd?.scheduledCron ?? null,
     cicd_shard_enabled: project.cicd?.shardEnabled ?? null,
     cicd_shard_workers: project.cicd?.shardWorkers ?? null,
+    local_directory: project.localDirectory ?? null,
   }
 }
 

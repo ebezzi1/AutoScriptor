@@ -1,9 +1,13 @@
+import { useState, useEffect, useCallback } from 'react'
 import { useApp } from '../store/AppContext'
 import { useToast } from '../components/common/Toast'
+import { useAgent } from '../store/AgentContext'
 import { Field, Input, Select, Toggle } from '../components/common/Field'
 import { Btn } from '../components/common/Btn'
 import { StepTable } from '../components/steps/StepTable'
+import { ProjectScaffoldModal } from '../components/ProjectScaffoldModal'
 import type { Project, EnvProfile, AuthRole, AuthConfig } from '../types'
+import type { ProjectInfoResponse } from '../lib/agent'
 import { getEnvColor, AUTH_ROLE_COLORS, toKebab } from '../types'
 
 const STANDARD_ENV_NAMES = ['dev', 'development', 'local', 'staging', 'stage', 'qa', 'uat', 'production', 'prod']
@@ -13,9 +17,43 @@ interface Props { projectId: string }
 export function ProjectSettings({ projectId }: Props) {
   const { state, dispatch } = useApp()
   const { toast } = useToast()
+  const { agentUrl, agentToken, setAgentUrl, setAgentToken, saveSettings, testConnection, setShowSetupWizard, client, isConnected } = useAgent()
+  const [showToken, setShowToken] = useState(false)
+  const [testing, setTesting] = useState(false)
+  const [testResult, setTestResult] = useState<{ ok: boolean; version?: string; uptime?: number; error?: string } | null>(null)
+  const [dirInput, setDirInput] = useState('')
+  const [dirStatus, setDirStatus] = useState<ProjectInfoResponse | null>(null)
+  const [dirChecking, setDirChecking] = useState(false)
+  const [showScaffold, setShowScaffold] = useState(false)
   const project = state.projects.find((p) => p.id === projectId)
   const projectVars = state.variables.filter((v) => v.projectId === projectId && v.scope === 'project')
   const projectUtils = state.utils.filter((u) => u.projectId === projectId)
+
+  // Sync dirInput from project on load
+  useEffect(() => {
+    if (project?.localDirectory && !dirInput) setDirInput(project.localDirectory)
+  }, [project?.localDirectory]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const checkDirectory = useCallback(async () => {
+    if (!client || !dirInput.trim()) return
+    setDirChecking(true)
+    try {
+      await client.setProjectDir(dirInput.trim())
+      const info = await client.getProjectInfo()
+      setDirStatus(info)
+    } catch {
+      setDirStatus(null)
+    } finally {
+      setDirChecking(false)
+    }
+  }, [client, dirInput])
+
+  // Auto-check directory on load if already set
+  useEffect(() => {
+    if (project?.localDirectory && isConnected && client) {
+      checkDirectory()
+    }
+  }, [isConnected]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!project) return <div className="p-8 text-vsc-muted text-xs">Project not found</div>
 
@@ -95,6 +133,23 @@ export function ProjectSettings({ projectId }: Props) {
   }
 
   const save = () => toast('Settings saved')
+
+  const handleTestConnection = async () => {
+    setTesting(true)
+    setTestResult(null)
+    const result = await testConnection()
+    setTestResult(result)
+    setTesting(false)
+  }
+
+  const handleSaveAgentSettings = async () => {
+    try {
+      await saveSettings()
+      toast('Agent settings saved')
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Failed to save', 'error')
+    }
+  }
 
   return (
     <div className="p-8 max-w-2xl">
@@ -430,10 +485,230 @@ export function ProjectSettings({ projectId }: Props) {
           </div>
         </div>
 
+        <div className="h-px bg-vsc-border/40" />
+
+        {/* Local Directory */}
+        <div>
+          <div className="flex items-center gap-3 mb-4">
+            <p className="text-[9px] font-semibold text-vsc-dim uppercase tracking-[0.14em] shrink-0">
+              Local Directory
+            </p>
+            <div className="flex-1 h-px bg-vsc-border/50" />
+          </div>
+
+          <p className="text-[10px] text-vsc-dim mb-4">
+            Set the local directory where generated test files will be written and Playwright tests will run.
+          </p>
+
+          <div className="flex flex-col gap-3">
+            <Field label="Project directory">
+              <div className="flex gap-2">
+                <Input
+                  value={dirInput}
+                  onChange={(e) => setDirInput(e.target.value)}
+                  placeholder="/Users/me/my-project"
+                  className="font-mono"
+                />
+                <button
+                  onClick={async () => {
+                    if (!dirInput.trim()) return
+                    update('localDirectory', dirInput.trim())
+                    toast('Directory saved')
+                    if (isConnected && client) {
+                      await checkDirectory()
+                    }
+                  }}
+                  disabled={!dirInput.trim() || !isConnected || dirChecking}
+                  className="text-[9px] uppercase tracking-wider border border-vsc-border text-vsc-muted px-3 py-1.5 rounded-sm hover:border-vsc-accent/60 hover:text-vsc-accent transition-all disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                >
+                  {dirChecking ? 'Checking...' : 'Set Directory'}
+                </button>
+              </div>
+            </Field>
+
+            {!isConnected && (
+              <p className="text-[10px] text-vsc-dim/70">
+                Connect the agent first to check directory status.
+              </p>
+            )}
+
+            {/* Directory status */}
+            {dirStatus && isConnected && (
+              <div className="bg-vsc-bg border border-vsc-border rounded-sm p-3 flex flex-col gap-1.5">
+                <p className="text-[9px] text-vsc-dim uppercase tracking-widest mb-1">Directory Status</p>
+                <StatusRow ok={!!dirStatus.path} label="Folder exists" />
+                <StatusRow ok={dirStatus.hasPackageJson} label="Has package.json" />
+                <StatusRow ok={dirStatus.hasPlaywright} label="Playwright installed" detail={dirStatus.playwrightVersion ? `v${dirStatus.playwrightVersion}` : undefined} />
+                <StatusRow ok={dirStatus.gitInitialized} label="Git initialized" />
+              </div>
+            )}
+
+            {/* Show Create & Setup button if dir missing or Playwright not installed */}
+            {isConnected && dirStatus && (!dirStatus.path || !dirStatus.hasPlaywright) && (
+              <Btn
+                variant="primary"
+                size="sm"
+                onClick={() => setShowScaffold(true)}
+              >
+                {!dirStatus.path ? 'Create & Setup' : 'Install Playwright'}
+              </Btn>
+            )}
+          </div>
+        </div>
+
+        {showScaffold && (
+          <ProjectScaffoldModal
+            directory={dirInput.trim()}
+            projectName={project.name}
+            onClose={() => setShowScaffold(false)}
+            onComplete={async () => {
+              update('localDirectory', dirInput.trim())
+              if (isConnected && client) {
+                await checkDirectory()
+              }
+            }}
+          />
+        )}
+
+        <div className="h-px bg-vsc-border/40" />
+
+        {/* Agent */}
+        <div>
+          <div className="flex items-center gap-3 mb-4">
+            <p className="text-[9px] font-semibold text-vsc-dim uppercase tracking-[0.14em] shrink-0">
+              Agent
+            </p>
+            <div className="flex-1 h-px bg-vsc-border/50" />
+          </div>
+
+          <p className="text-[10px] text-vsc-dim mb-4">
+            Connect to a running <code className="font-mono text-vsc-muted">autoscriptor-agent</code> to run tests, sync files, and open reports locally.
+          </p>
+
+          <div className="flex flex-col gap-3">
+            <Field label="Agent URL">
+              <Input
+                value={agentUrl}
+                onChange={(e) => setAgentUrl(e.target.value)}
+                placeholder="http://localhost:4567"
+              />
+            </Field>
+
+            <Field label="Agent token">
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Input
+                    type={showToken ? 'text' : 'password'}
+                    value={agentToken}
+                    onChange={(e) => setAgentToken(e.target.value)}
+                    placeholder="Paste token from agent startup output"
+                    className="pr-9"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowToken((v) => !v)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-vsc-dim hover:text-vsc-muted transition-colors"
+                    title={showToken ? 'Hide token' : 'Show token'}
+                  >
+                    {showToken ? (
+                      <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+                        <path d="M1 6.5C1 6.5 3 2.5 6.5 2.5S12 6.5 12 6.5 10 10.5 6.5 10.5 1 6.5 1 6.5z" stroke="currentColor" strokeWidth="1.2"/>
+                        <circle cx="6.5" cy="6.5" r="1.5" stroke="currentColor" strokeWidth="1.2"/>
+                        <path d="M2 2l9 9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+                      </svg>
+                    ) : (
+                      <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+                        <path d="M1 6.5C1 6.5 3 2.5 6.5 2.5S12 6.5 12 6.5 10 10.5 6.5 10.5 1 6.5 1 6.5z" stroke="currentColor" strokeWidth="1.2"/>
+                        <circle cx="6.5" cy="6.5" r="1.5" stroke="currentColor" strokeWidth="1.2"/>
+                      </svg>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </Field>
+
+            <div className="flex items-center gap-3 pt-1">
+              <button
+                onClick={handleTestConnection}
+                disabled={testing || !agentToken}
+                className="text-[9px] uppercase tracking-wider border border-vsc-border text-vsc-muted px-3 py-1.5 rounded-sm hover:border-vsc-accent/60 hover:text-vsc-accent transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {testing ? 'Testing…' : 'Test connection'}
+              </button>
+
+              <Btn variant="primary" size="sm" onClick={handleSaveAgentSettings}>
+                Save agent settings
+              </Btn>
+
+              {testResult && (
+                <span className={`text-[10px] flex items-center gap-1.5 ${testResult.ok ? 'text-green-400' : 'text-red-400'}`}>
+                  {testResult.ok ? (
+                    <>
+                      <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+                        <path d="M2 5.5l2.5 2.5 4.5-5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                      v{testResult.version} · up {Math.floor((testResult.uptime ?? 0) / 1000)}s
+                    </>
+                  ) : (
+                    <>
+                      <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+                        <path d="M2 2l7 7M9 2l-7 7" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+                      </svg>
+                      {testResult.error}
+                    </>
+                  )}
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setShowSetupWizard(true)}
+                className="text-[9px] uppercase tracking-wider border border-vsc-border text-vsc-muted px-3 py-1.5 rounded-sm hover:border-vsc-accent/60 hover:text-vsc-accent transition-all flex items-center gap-1.5"
+              >
+                <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+                  <path d="M2 2h8v8H2V2z" stroke="currentColor" strokeWidth="1.2"/>
+                  <path d="M5 4.5l3 1.5-3 1.5v-3z" fill="currentColor"/>
+                </svg>
+                Re-run Setup Wizard
+              </button>
+            </div>
+
+            <p className="text-[10px] text-vsc-dim/70">
+              Start the agent:{' '}
+              <code className="font-mono text-vsc-muted bg-vsc-hover px-1 py-0.5 rounded">
+                npm i -g autoscriptor-agent && autoscriptor-agent start
+              </code>
+            </p>
+          </div>
+        </div>
+
         <div className="pt-1">
           <Btn variant="primary" onClick={save}>Save settings</Btn>
         </div>
       </div>
+    </div>
+  )
+}
+
+function StatusRow({ ok, label, detail }: { ok: boolean; label: string; detail?: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      {ok ? (
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="text-green-400 shrink-0">
+          <path d="M2 6l3 3 5-5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      ) : (
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="text-red-400 shrink-0">
+          <path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+        </svg>
+      )}
+      <span className={`text-[10px] ${ok ? 'text-vsc-muted' : 'text-red-400/80'}`}>
+        {label}
+      </span>
+      {detail && (
+        <span className="text-[9px] text-vsc-dim ml-1">{detail}</span>
+      )}
     </div>
   )
 }

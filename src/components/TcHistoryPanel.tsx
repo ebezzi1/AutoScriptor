@@ -154,7 +154,7 @@ export function TcHistoryPanel({ testCaseId, projectId, currentTc, onClose, onRe
 
   const load = useCallback(async () => {
     setLoading(true)
-    const snaps = await getVersionSnapshots(projectId, testCaseId, 50)
+    const snaps = await getVersionSnapshots(projectId, 'test_case', testCaseId, 50)
     setSnapshots(snaps)
 
     const ids = [...new Set(snaps.filter(s => s.createdBy).map(s => s.createdBy!))]
@@ -179,7 +179,7 @@ export function TcHistoryPanel({ testCaseId, projectId, currentTc, onClose, onRe
     if (savingManual) return
     setSavingManual(true)
     await createVersionSnapshot(
-      projectId, testCaseId, 'manual',
+      projectId, 'test_case', testCaseId, 'manual',
       manualLabel.trim() || `Snapshot at ${formatAbsoluteTime(new Date().toISOString())}`,
       { tc: JSON.parse(JSON.stringify(currentTc)) },
       user?.id ?? null,
@@ -213,7 +213,7 @@ export function TcHistoryPanel({ testCaseId, projectId, currentTc, onClose, onRe
 
     // Save pre-restore state as a pinned snapshot (deep-clone to freeze current state)
     await createVersionSnapshot(
-      projectId, testCaseId, 'auto',
+      projectId, 'test_case', testCaseId, 'auto',
       `Before restore to "${snap.label}"`,
       { tc: JSON.parse(JSON.stringify(currentTc)) },
       user?.id ?? null, null, true

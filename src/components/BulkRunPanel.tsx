@@ -1,7 +1,18 @@
 import { useState, useCallback } from 'react'
 import { Modal } from './common/Modal'
 import { Btn } from './common/Btn'
-import type { Feature, TestCase } from '../types'
+import { useAgent } from '../store/AgentContext'
+import { useApp } from '../store/AppContext'
+import { useToast } from './common/Toast'
+import type { Feature, TestCase, Project } from '../types'
+import {
+  generateConfig,
+  generateSpecFile,
+  generateConstants,
+  generateEnvFile,
+  generateUtilHelper,
+  generateFixtureFile,
+} from '../lib/codeGenerator'
 
 function slug(name: string): string {
   return name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
@@ -10,12 +21,16 @@ function slug(name: string): string {
 type RunMode = 'all' | 'feature' | 'tag' | 'priority'
 
 interface Props {
+  project: Project
   features: Feature[]
   testCases: TestCase[]
   onClose: () => void
 }
 
-export function BulkRunPanel({ features, testCases, onClose }: Props) {
+export function BulkRunPanel({ project, features, testCases, onClose }: Props) {
+  const { isConnected, runCommand, setShowSetupWizard, client } = useAgent()
+  const { state, navigate } = useApp()
+  const { toast } = useToast()
   const [mode, setMode] = useState<RunMode>('all')
   const [selectedFeatureId, setSelectedFeatureId] = useState('')
   const [selectedTag, setSelectedTag] = useState('')
@@ -23,6 +38,8 @@ export function BulkRunPanel({ features, testCases, onClose }: Props) {
   const [headed, setHeaded] = useState(false)
   const [browser, setBrowser] = useState('')
   const [copied, setCopied] = useState<string | null>(null)
+  const [syncing, setSyncing] = useState(false)
+  const [showSetupPrompt, setShowSetupPrompt] = useState(false)
 
   // Collect unique tags from all test cases and features
   const allTags = Array.from(
@@ -33,6 +50,13 @@ export function BulkRunPanel({ features, testCases, onClose }: Props) {
   ).filter(Boolean).sort()
 
   const priorities = ['P0', 'P1', 'P2', 'P3'] as const
+
+  // Named projects exist only when multi-role auth is configured
+  const hasNamedProjects = !!(project.auth?.enabled && project.auth.roles.length > 1)
+
+  function browserFlag(b: string): string {
+    return hasNamedProjects ? `--project=${b}` : `--browser=${b}`
+  }
 
   function buildCommand(): string {
     const parts = ['npx playwright test']
@@ -47,7 +71,7 @@ export function BulkRunPanel({ features, testCases, onClose }: Props) {
     }
 
     if (headed) parts.push('--headed')
-    if (browser) parts.push(`--project=${browser}`)
+    if (browser) parts.push(browserFlag(browser))
 
     return parts.join(' ')
   }
@@ -61,12 +85,103 @@ export function BulkRunPanel({ features, testCases, onClose }: Props) {
     })
   }, [])
 
+  // Generate all files needed for a run and write them to the agent
+  const syncFiles = useCallback(async (): Promise<boolean> => {
+    if (!client) return false
+    try {
+      const ext = project.language === 'typescript' ? 'ts' : 'js'
+      const vars = state.variables.filter((v) => v.projectId === project.id)
+      const utils = state.utils.filter((u) => u.projectId === project.id)
+      const fixtures = state.fixtures.filter((f) => f.projectId === project.id)
+      const activeTCs = testCases.filter((tc) => !tc.disabled)
+
+      const files: { filePath: string; content: string }[] = []
+
+      // playwright.config
+      files.push({ filePath: `playwright.config.${ext}`, content: generateConfig(project) })
+
+      // constants + .env.test
+      files.push({ filePath: `utils/constants.${ext}`, content: generateConstants(vars, project.language) })
+      files.push({ filePath: '.env.test', content: generateEnvFile(vars) })
+
+      // util helpers
+      for (const util of utils) {
+        files.push({
+          filePath: `utils/${util.name}.helper.${ext}`,
+          content: generateUtilHelper(util, vars, project.language),
+        })
+      }
+
+      // fixtures
+      for (const fx of fixtures) {
+        files.push({
+          filePath: `fixtures/${fx.name}.json`,
+          content: generateFixtureFile(fx),
+        })
+      }
+
+      // spec files per feature
+      for (const f of features) {
+        const fTCs = activeTCs.filter((tc) => tc.featureId === f.id)
+        if (fTCs.length === 0) continue
+        const specContent = generateSpecFile(f, fTCs, vars, utils, fixtures, project)
+        files.push({
+          filePath: `tests/${slug(f.name)}/${slug(f.name)}.spec.${ext}`,
+          content: specContent,
+        })
+      }
+
+      await client.writeBatch(files)
+      return true
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Failed to sync files', 'error')
+      return false
+    }
+  }, [client, project, features, testCases, state.variables, state.utils, state.fixtures, toast])
+
+  // Pre-run check: directory set? Playwright installed? Then sync + run
+  const handleRunWithChecks = useCallback(async (cmd: string) => {
+    if (!client || !isConnected) {
+      setShowSetupWizard(true)
+      onClose()
+      return
+    }
+
+    // Check if directory is set
+    if (!project.localDirectory) {
+      toast('Set a project directory first', 'error')
+      navigate({ type: 'project-settings', projectId: project.id })
+      onClose()
+      return
+    }
+
+    // Check project info
+    try {
+      const info = await client.getProjectInfo()
+      if (!info.hasPlaywright) {
+        setShowSetupPrompt(true)
+        return
+      }
+    } catch {
+      // If check fails, try to run anyway
+    }
+
+    // Sync files then run
+    setSyncing(true)
+    const synced = await syncFiles()
+    setSyncing(false)
+    if (!synced) return
+
+    runCommand(cmd)
+    onClose()
+  }, [client, isConnected, project, syncFiles, runCommand, onClose, toast, navigate, setShowSetupWizard])
+
   const prebuilt: { label: string; cmd: string; key: string }[] = [
     { label: 'Run all tests', cmd: 'npx playwright test', key: 'all' },
     { label: 'Run headed', cmd: 'npx playwright test --headed', key: 'headed' },
-    { label: 'Run Chromium only', cmd: 'npx playwright test --project=chromium', key: 'chromium' },
-    { label: 'Run Firefox only', cmd: 'npx playwright test --project=firefox', key: 'firefox' },
-    { label: 'Run WebKit only', cmd: 'npx playwright test --project=webkit', key: 'webkit' },
+    { label: 'Run Chromium only', cmd: `npx playwright test ${browserFlag('chromium')}`, key: 'chromium' },
+    { label: 'Run Firefox only', cmd: `npx playwright test ${browserFlag('firefox')}`, key: 'firefox' },
+    { label: 'Run WebKit only', cmd: `npx playwright test ${browserFlag('webkit')}`, key: 'webkit' },
     { label: 'Run smoke tests', cmd: 'npx playwright test --grep "@smoke"', key: 'smoke' },
     { label: 'Debug mode', cmd: 'npx playwright test --debug', key: 'debug' },
     { label: 'UI mode', cmd: 'npx playwright test --ui', key: 'ui' },
@@ -107,6 +222,16 @@ export function BulkRunPanel({ features, testCases, onClose }: Props) {
                   className="text-[9px] text-vsc-dim hover:text-vsc-accent transition-colors shrink-0 px-1.5 py-0.5 border border-vsc-border/50 rounded-sm hover:border-vsc-accent/40"
                 >
                   {copied === item.key ? '✓' : 'copy'}
+                </button>
+                <button
+                  onClick={() => handleRunWithChecks(item.cmd)}
+                  disabled={syncing}
+                  className="text-[9px] font-medium text-white bg-vsc-accent hover:bg-vsc-accent-hover transition-colors shrink-0 px-1.5 py-0.5 rounded-sm opacity-0 group-hover:opacity-100 disabled:opacity-50"
+                  title="Run Now"
+                >
+                  <svg width="8" height="8" viewBox="0 0 10 10" fill="none">
+                    <path d="M2 1l7 4-7 4V1z" fill="currentColor"/>
+                  </svg>
                 </button>
               </div>
             ))}
@@ -250,9 +375,56 @@ export function BulkRunPanel({ features, testCases, onClose }: Props) {
               >
                 {copied === 'builder' ? '✓' : 'copy'}
               </button>
+              <button
+                onClick={() => handleRunWithChecks(command)}
+                disabled={syncing}
+                className="text-[9px] font-medium text-white bg-vsc-accent hover:bg-vsc-accent-hover transition-colors shrink-0 px-2.5 py-1 rounded-sm flex items-center gap-1 disabled:opacity-50"
+              >
+                {syncing ? (
+                  <>
+                    <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+                    </svg>
+                    Syncing files...
+                  </>
+                ) : (
+                  <>
+                    <svg width="9" height="9" viewBox="0 0 10 10" fill="none" className="shrink-0">
+                      <path d="M2 1l7 4-7 4V1z" fill="currentColor"/>
+                    </svg>
+                    Run Now
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>
+
+        {/* Playwright not installed prompt */}
+        {showSetupPrompt && (
+          <div className="bg-vsc-bg border border-amber-500/30 rounded-sm p-4 flex flex-col gap-3">
+            <div className="flex items-center gap-2">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="text-amber-400 shrink-0">
+                <path d="M8 1L1 14h14L8 1z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
+                <path d="M8 6v3M8 11h.01" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
+              <p className="text-xs text-vsc-text font-medium">Playwright is not installed in this directory.</p>
+            </div>
+            <p className="text-[10px] text-vsc-muted">Set up the project directory first to install Playwright and its dependencies.</p>
+            <div className="flex items-center gap-2">
+              <Btn variant="primary" size="sm" onClick={() => {
+                navigate({ type: 'project-settings', projectId: project.id })
+                onClose()
+              }}>
+                Setup
+              </Btn>
+              <Btn variant="ghost" size="sm" onClick={() => setShowSetupPrompt(false)}>
+                Cancel
+              </Btn>
+            </div>
+          </div>
+        )}
 
       </div>
     </Modal>

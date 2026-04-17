@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthProvider'
 import { usePermissions } from '../../hooks/usePermissions'
 import { useToast } from '../common/Toast'
 import { useTheme, type Theme } from '../../store/ThemeContext'
+import { useAgent } from '../../store/AgentContext'
 import { Btn } from '../common/Btn'
 import { generateAndDownload } from '../../lib/zipBuilder'
 import { getEnvColor } from '../../types'
@@ -206,6 +207,105 @@ function UserMenu() {
             </svg>
             Sign Out
           </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function AgentStatusIndicator() {
+  const { isConnected, agentUrl, agentVersion, agentUptime, projectDir, disconnect, setShowSetupWizard } = useAgent()
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return undefined
+    const handle = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handle)
+    return () => document.removeEventListener('mousedown', handle)
+  }, [open])
+
+  const host = (() => { try { return new URL(agentUrl).host } catch { return agentUrl } })()
+
+  const formatUptime = (ms: number) => {
+    const s = Math.floor(ms / 1000)
+    if (s < 60) return `${s}s`
+    if (s < 3600) return `${Math.floor(s / 60)}m ${s % 60}s`
+    return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs text-vsc-muted hover:text-vsc-text hover:bg-vsc-hover transition-colors"
+      >
+        <span className={`w-2 h-2 rounded-full transition-colors shrink-0 ${isConnected ? 'bg-green-500' : 'bg-vsc-border'}`} />
+        <span className="hidden sm:inline">Agent</span>
+      </button>
+
+      {open && (
+        <div className="absolute top-full right-0 mt-1.5 z-50 bg-vsc-panel border border-vsc-border rounded-lg shadow-xl min-w-[220px] animate-popover-in">
+          {isConnected ? (
+            <div className="p-3 flex flex-col gap-2.5">
+              <div className="flex items-center gap-2 mb-0.5">
+                <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
+                <span className="text-xs font-medium text-green-400">Connected</span>
+              </div>
+              <div className="flex flex-col gap-1.5 text-[10px]">
+                <div className="flex justify-between">
+                  <span className="text-vsc-dim">URL</span>
+                  <span className="text-vsc-muted font-mono">{host}</span>
+                </div>
+                {agentVersion && (
+                  <div className="flex justify-between">
+                    <span className="text-vsc-dim">Version</span>
+                    <span className="text-vsc-muted">v{agentVersion}</span>
+                  </div>
+                )}
+                {agentUptime != null && (
+                  <div className="flex justify-between">
+                    <span className="text-vsc-dim">Uptime</span>
+                    <span className="text-vsc-muted">{formatUptime(agentUptime)}</span>
+                  </div>
+                )}
+                {projectDir && (
+                  <div className="flex justify-between gap-3">
+                    <span className="text-vsc-dim shrink-0">Project</span>
+                    <span className="text-vsc-muted font-mono truncate text-right" title={projectDir}>
+                      {projectDir.split('/').slice(-2).join('/')}
+                    </span>
+                  </div>
+                )}
+              </div>
+              <div className="h-px bg-vsc-border/50 mt-1" />
+              <button
+                onClick={() => { disconnect(); setOpen(false) }}
+                className="text-[10px] text-vsc-dim hover:text-red-400 transition-colors text-left"
+              >
+                Disconnect
+              </button>
+            </div>
+          ) : (
+            <div className="p-3 flex flex-col gap-3">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-vsc-border shrink-0" />
+                <span className="text-xs text-vsc-muted">Agent not running</span>
+              </div>
+              <button
+                onClick={() => { setShowSetupWizard(true); setOpen(false) }}
+                className="text-xs text-vsc-accent hover:text-vsc-accent-hover transition-colors text-left flex items-center gap-1.5"
+              >
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                  <path d="M2 2h8v8H2V2z" stroke="currentColor" strokeWidth="1.2"/>
+                  <path d="M5 4.5l3 1.5-3 1.5v-3z" fill="currentColor"/>
+                </svg>
+                Setup Guide
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -471,6 +571,7 @@ export function TopBar() {
           </div>
         )}
 
+        <AgentStatusIndicator />
         <ThemeToggle />
         <UserMenu />
       </div>

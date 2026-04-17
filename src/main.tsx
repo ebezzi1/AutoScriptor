@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import './styles/index.css'
 import { ThemeProvider } from './store/ThemeContext'
 import { AppProvider } from './store/AppContext'
+import { AgentProvider } from './store/AgentContext'
 import { ToastProvider, useToast } from './components/common/Toast'
 import { AuthProvider, useAuth } from './components/auth/AuthProvider'
 import { LoginPage } from './components/auth/LoginPage'
@@ -32,9 +33,11 @@ function AuthGate() {
   )
   return (
     <ToastProvider>
-      <AppProvider>
-        <App />
-      </AppProvider>
+      <AgentProvider>
+        <AppProvider>
+          <App />
+        </AppProvider>
+      </AgentProvider>
     </ToastProvider>
   )
 }

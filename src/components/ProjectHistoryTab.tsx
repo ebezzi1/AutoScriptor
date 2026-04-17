@@ -62,19 +62,67 @@ export function ProjectHistoryTab({ projectId, projectName }: Props) {
 
   const load = useCallback(async () => {
     setLoading(true)
-    const snaps = await getVersionSnapshots(projectId, null, 50)
-    setSnapshots(snaps)
-    const ids = [...new Set(snaps.filter(s => s.createdBy).map(s => s.createdBy!))]
-    if (ids.length > 0) {
-      const { data } = await supabase
-        .from('profiles')
-        .select('id, display_name')
-        .in('id', ids)
-      if (data) {
-        setUserNames(new Map(data.map((p: { id: string; display_name: string | null }) => [p.id, p.display_name ?? 'Unknown'])))
+    try {
+      // Query new-style snapshots (entity_type = 'project') AND old-style
+      // project-level snapshots (entity_type IS NULL AND test_case_id IS NULL)
+      // so the panel works before and after the backfill migration.
+      console.log('[ProjectHistory] Fetching snapshots for project:', projectId, {
+        filters: { project_id: projectId, entity_type: 'project OR null', test_case_id: 'null (for old rows)' },
+      })
+      const { data: rawSnaps, error } = await supabase
+        .from('snapshots')
+        .select('*')
+        .eq('project_id', projectId)
+        .or(`entity_type.eq.project,and(entity_type.is.null,test_case_id.is.null)`)
+        .order('created_at', { ascending: false })
+        .limit(50)
+
+      console.log('[ProjectHistory] Supabase response:', { data: rawSnaps, error })
+
+      if (error) {
+        console.error('[ProjectHistory] Query error:', error)
+        setSnapshots([])
+        return
       }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const snaps = (rawSnaps ?? []).map((row: any) => {
+        let data = row.data ?? {}
+        if (typeof data === 'string') { try { data = JSON.parse(data) } catch { data = {} } }
+        return {
+          id: row.id as string,
+          projectId: row.project_id as string,
+          entityType: (row.entity_type ?? 'project') as import('../lib/database/versionHistory').SnapshotEntityType,
+          entityId: (row.entity_id ?? row.project_id) as string,
+          createdBy: row.created_by as string | null,
+          snapshotType: row.snapshot_type as 'auto' | 'manual' | 'generation',
+          label: row.label as string,
+          changeDescription: row.change_description as string | null,
+          data: data as Record<string, unknown>,
+          isPinned: row.is_pinned as boolean,
+          createdAt: row.created_at as string,
+        }
+      })
+
+      console.log('[ProjectHistory] Processed snapshots:', snaps.length, 'rows')
+      setSnapshots(snaps)
+
+      const ids = [...new Set(snaps.filter(s => s.createdBy).map(s => s.createdBy!))]
+      if (ids.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, display_name')
+          .in('id', ids)
+        if (profiles) {
+          setUserNames(new Map(profiles.map((p: { id: string; display_name: string | null }) => [p.id, p.display_name ?? 'Unknown'])))
+        }
+      }
+    } catch (err) {
+      console.error('[ProjectHistory] Unexpected error in load():', err)
+      setSnapshots([])
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }, [projectId])
 
   useEffect(() => { load() }, [load])
@@ -84,7 +132,7 @@ export function ProjectHistoryTab({ projectId, projectName }: Props) {
     setSavingManual(true)
     const data = getProjectSnapshot(projectId, state)
     await createVersionSnapshot(
-      projectId, null, 'manual',
+      projectId, 'project', projectId, 'manual',
       manualLabel.trim() || `Snapshot at ${formatAbsoluteTime(new Date().toISOString())}`,
       data, user?.id ?? null, null, true
     )
@@ -117,7 +165,7 @@ export function ProjectHistoryTab({ projectId, projectName }: Props) {
       // Save current state as pinned snapshot
       const currentData = getProjectSnapshot(projectId, state)
       await createVersionSnapshot(
-        projectId, null, 'manual',
+        projectId, 'project', projectId, 'manual',
         `Before restore to "${confirmRestore.label}"`,
         currentData, user?.id ?? null, null, true
       )

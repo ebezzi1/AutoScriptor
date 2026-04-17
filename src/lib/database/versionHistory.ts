@@ -7,10 +7,13 @@ import { createUtil } from './utils'
 import { createFixture } from './fixtures'
 import { updateProject } from './projects'
 
+export type SnapshotEntityType = 'test_case' | 'project' | 'feature'
+
 export interface VersionSnapshot {
   id: string
   projectId: string
-  testCaseId: string | null
+  entityType: SnapshotEntityType
+  entityId: string
   createdBy: string | null
   snapshotType: 'auto' | 'manual' | 'generation'
   label: string
@@ -31,7 +34,8 @@ function toVersionSnapshot(row: Record<string, unknown>): VersionSnapshot {
   return {
     id: row.id as string,
     projectId: row.project_id as string,
-    testCaseId: row.test_case_id as string | null,
+    entityType: row.entity_type as SnapshotEntityType,
+    entityId: row.entity_id as string,
     createdBy: row.created_by as string | null,
     snapshotType: row.snapshot_type as 'auto' | 'manual' | 'generation',
     label: row.label as string,
@@ -44,7 +48,8 @@ function toVersionSnapshot(row: Record<string, unknown>): VersionSnapshot {
 
 export async function createVersionSnapshot(
   projectId: string,
-  testCaseId: string | null,
+  entityType: SnapshotEntityType,
+  entityId: string,
   snapshotType: 'auto' | 'manual' | 'generation',
   label: string,
   data: Record<string, unknown>,
@@ -56,7 +61,8 @@ export async function createVersionSnapshot(
     .from('snapshots')
     .insert({
       project_id: projectId,
-      test_case_id: testCaseId,
+      entity_type: entityType,
+      entity_id: entityId,
       created_by: createdBy,
       snapshot_type: snapshotType,
       label,
@@ -75,25 +81,19 @@ export async function createVersionSnapshot(
 
 export async function getVersionSnapshots(
   projectId: string,
-  testCaseId?: string | null,
+  entityType: SnapshotEntityType,
+  entityId: string,
   limit = 50
 ): Promise<VersionSnapshot[]> {
-  let query = supabase
+  const { data, error } = await supabase
     .from('snapshots')
     .select('*')
     .eq('project_id', projectId)
+    .eq('entity_type', entityType)
+    .eq('entity_id', entityId)
     .order('created_at', { ascending: false })
     .limit(limit)
 
-  if (testCaseId !== undefined) {
-    if (testCaseId === null) {
-      query = query.is('test_case_id', null)
-    } else {
-      query = query.eq('test_case_id', testCaseId)
-    }
-  }
-
-  const { data, error } = await query
   if (error) return []
   return (data ?? []).map(toVersionSnapshot)
 }
@@ -108,24 +108,20 @@ export async function pinVersionSnapshot(id: string, isPinned: boolean): Promise
 
 export async function pruneOldVersionSnapshots(
   projectId: string,
-  testCaseId: string | null,
+  entityType: SnapshotEntityType,
+  entityId: string,
   limit: number
 ): Promise<void> {
-  let query = supabase
+  const { data } = await supabase
     .from('snapshots')
     .select('id')
     .eq('project_id', projectId)
+    .eq('entity_type', entityType)
+    .eq('entity_id', entityId)
     .eq('is_pinned', false)
     .order('created_at', { ascending: false })
     .range(limit, 9999)
 
-  if (testCaseId === null) {
-    query = query.is('test_case_id', null)
-  } else {
-    query = query.eq('test_case_id', testCaseId)
-  }
-
-  const { data } = await query
   if (!data || data.length === 0) return
   const ids = data.map((r: Record<string, unknown>) => r.id as string)
   await supabase.from('snapshots').delete().in('id', ids)

@@ -1,7 +1,10 @@
 import { useEffect } from 'react'
 import { useApp } from './store/AppContext'
+import { useAgent } from './store/AgentContext'
 import { Sidebar } from './components/layout/Sidebar'
 import { TopBar } from './components/layout/TopBar'
+import { TestRunnerPanel } from './components/TestRunnerPanel'
+import { SetupWizard } from './components/SetupWizard'
 import { ProjectsList } from './views/ProjectsList'
 import { ProjectDashboard } from './views/ProjectDashboard'
 import { ProjectSettings } from './views/ProjectSettings'
@@ -46,6 +49,7 @@ function MainContent() {
 
 export default function App() {
   const { state } = useApp()
+  const { showSetupWizard, setShowSetupWizard, showRunner } = useAgent()
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -73,11 +77,18 @@ export default function App() {
         <Sidebar />
         <main
           className="flex-1 overflow-y-auto scrollbar-thin bg-vsc-bg"
-          style={envHex ? { borderTop: `2px solid ${envHex}50` } : undefined}
+          style={{
+            ...(envHex ? { borderTop: `2px solid ${envHex}50` } : {}),
+            ...(showRunner ? { paddingBottom: '300px' } : {}),
+          }}
         >
           <MainContent />
         </main>
       </div>
+      <TestRunnerPanel />
+      {showSetupWizard && (
+        <SetupWizard onClose={() => setShowSetupWizard(false)} />
+      )}
     </div>
   )
 }

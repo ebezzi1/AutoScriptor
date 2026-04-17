@@ -276,8 +276,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     })
     // Create a generation-type project snapshot
     const data = getProjectSnapshot(projectId, stateRef.current)
-    createVersionSnapshot(projectId, null, 'generation', 'Generated code', data, user?.id ?? null)
-      .then(() => pruneOldVersionSnapshots(projectId, null, 30))
+    createVersionSnapshot(projectId, 'project', projectId, 'generation', 'Generated code', data, user?.id ?? null)
+      .then(() => pruneOldVersionSnapshots(projectId, 'project', projectId, 30))
       .catch(console.error)
   }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -351,8 +351,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
           const label = detectTcChangeLabel(startTc, latestTc)
           // Deep-clone so the stored snapshot is never affected by later mutations
           const tcClone = JSON.parse(JSON.stringify(latestTc))
-          createVersionSnapshot(action.tc.projectId, tcId, 'auto', label, { tc: tcClone }, user?.id ?? null)
-            .then(() => pruneOldVersionSnapshots(action.tc.projectId, tcId, 50))
+          createVersionSnapshot(action.tc.projectId, 'test_case', tcId, 'auto', label, { tc: tcClone }, user?.id ?? null)
+            .then(() => pruneOldVersionSnapshots(action.tc.projectId, 'test_case', tcId, 50))
             .catch(console.error)
         }, 2000)
 
@@ -364,8 +364,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
           const label = detectProjectChangeLabel(action)
           // Deep-clone so the snapshot is never affected by later state mutations
           const data = JSON.parse(JSON.stringify(getProjectSnapshot(projectId, nextState)))
-          createVersionSnapshot(projectId, null, 'auto', label, data, user?.id ?? null)
-            .then(() => pruneOldVersionSnapshots(projectId, null, 30))
+          createVersionSnapshot(projectId, 'project', projectId, 'auto', label, data, user?.id ?? null)
+            .then(() => pruneOldVersionSnapshots(projectId, 'project', projectId, 30))
             .catch(console.error)
         }
       }

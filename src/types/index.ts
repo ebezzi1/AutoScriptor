@@ -94,6 +94,7 @@ export interface Project {
   activeEnvironmentId?: string | null
   auth?: AuthConfig
   cicd?: CiCdConfig
+  localDirectory?: string
 }
 
 export type SelectorStrategy = 'css' | 'xpath' | 'data-testid' | 'role' | 'text' | 'label'

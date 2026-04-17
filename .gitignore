@@ -10,3 +10,4 @@ graphify-out/
 !.env.example
 node_modules
 skills-lock.json
+CLAUDE.md

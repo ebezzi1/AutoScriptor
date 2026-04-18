@@ -257,27 +257,29 @@ export function BulkRunPanel({ project, features, testCases, onClose }: Props) {
             {dynamicPrebuilt.map((item) => (
               <div
                 key={item.key}
-                className="flex items-center gap-2 bg-vsc-bg border border-vsc-border rounded-sm px-3 py-2"
+                className="flex flex-wrap items-start gap-2 bg-vsc-bg border border-vsc-border rounded-sm px-3 py-2"
               >
-                <code className="flex-1 text-[11px] text-vsc-accent font-mono whitespace-nowrap">
+                <code className="flex-1 min-w-0 text-[11px] text-vsc-accent font-mono break-all leading-relaxed">
                   {item.cmd}
                 </code>
-                <button
-                  onClick={() => handleCopy(item.cmd, item.key)}
-                  className="text-[9px] text-vsc-dim hover:text-vsc-accent transition-colors shrink-0 px-1.5 py-0.5 border border-vsc-border/50 rounded-sm hover:border-vsc-accent/40"
-                >
-                  {copied === item.key ? '✓' : 'copy'}
-                </button>
-                <button
-                  onClick={() => handleRunWithChecks(item.cmd)}
-                  disabled={syncing || !isConnected}
-                  className="text-[9px] font-medium text-white bg-vsc-accent hover:bg-vsc-accent-hover transition-colors shrink-0 px-1.5 py-0.5 rounded-sm flex items-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed"
-                  title={!isConnected ? 'Connect the agent to run tests' : 'Run'}
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    onClick={() => handleCopy(item.cmd, item.key)}
+                    className="text-[9px] text-vsc-dim hover:text-vsc-accent transition-colors px-1.5 py-0.5 border border-vsc-border/50 rounded-sm hover:border-vsc-accent/40"
+                  >
+                    {copied === item.key ? '✓' : 'copy'}
+                  </button>
+                  <button
+                    onClick={() => handleRunWithChecks(item.cmd)}
+                    disabled={syncing || !isConnected}
+                    className="text-[9px] font-medium text-white bg-vsc-accent hover:bg-vsc-accent-hover transition-colors px-1.5 py-0.5 rounded-sm flex items-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed"
+                    title={!isConnected ? 'Connect the agent to run tests' : 'Run'}
                 >
                   <svg width="8" height="8" viewBox="0 0 10 10" fill="none">
                     <path d="M2 1l7 4-7 4V1z" fill="currentColor"/>
                   </svg>
                 </button>
+                </div>
               </div>
             ))}
           </div>
@@ -379,39 +381,41 @@ export function BulkRunPanel({ project, features, testCases, onClose }: Props) {
             )}
 
             {/* Generated command output */}
-            <div className="flex items-center gap-2 bg-vsc-sidebar border border-vsc-accent/30 rounded-sm px-3 py-2">
-              <code className="flex-1 text-[12px] text-vsc-accent font-mono break-all leading-relaxed">
+            <div className="flex flex-wrap items-start gap-2 bg-vsc-sidebar border border-vsc-accent/30 rounded-sm px-3 py-2">
+              <code className="flex-1 min-w-0 text-[12px] text-vsc-accent font-mono break-all leading-relaxed">
                 {command}
               </code>
-              <button
-                onClick={() => handleCopy(command, 'builder')}
-                className="text-[9px] text-vsc-dim hover:text-vsc-accent transition-colors shrink-0 px-1.5 py-0.5 border border-vsc-border/50 rounded-sm hover:border-vsc-accent/40"
-              >
-                {copied === 'builder' ? '✓' : 'copy'}
-              </button>
-              <button
-                onClick={() => handleRunWithChecks(command)}
-                disabled={syncing || !isConnected}
-                className="text-[9px] font-medium text-white bg-vsc-accent hover:bg-vsc-accent-hover transition-colors shrink-0 px-2.5 py-1 rounded-sm flex items-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed"
-                title={!isConnected ? 'Connect the agent to run tests' : 'Run'}
-              >
-                {syncing ? (
-                  <>
-                    <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
-                    </svg>
-                    Syncing...
-                  </>
-                ) : (
-                  <>
-                    <svg width="9" height="9" viewBox="0 0 10 10" fill="none" className="shrink-0">
-                      <path d="M2 1l7 4-7 4V1z" fill="currentColor"/>
-                    </svg>
-                    Run
-                  </>
-                )}
-              </button>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  onClick={() => handleCopy(command, 'builder')}
+                  className="text-[9px] text-vsc-dim hover:text-vsc-accent transition-colors px-1.5 py-0.5 border border-vsc-border/50 rounded-sm hover:border-vsc-accent/40"
+                >
+                  {copied === 'builder' ? '✓' : 'copy'}
+                </button>
+                <button
+                  onClick={() => handleRunWithChecks(command)}
+                  disabled={syncing || !isConnected}
+                  className="text-[9px] font-medium text-white bg-vsc-accent hover:bg-vsc-accent-hover transition-colors px-2.5 py-1 rounded-sm flex items-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed"
+                  title={!isConnected ? 'Connect the agent to run tests' : 'Run'}
+                >
+                  {syncing ? (
+                    <>
+                      <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+                      </svg>
+                      Syncing...
+                    </>
+                  ) : (
+                    <>
+                      <svg width="9" height="9" viewBox="0 0 10 10" fill="none" className="shrink-0">
+                        <path d="M2 1l7 4-7 4V1z" fill="currentColor"/>
+                      </svg>
+                      Run
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>

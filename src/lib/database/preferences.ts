@@ -17,7 +17,7 @@ export async function setPreference(
 ): Promise<void> {
   const { error } = await supabase
     .from('user_preferences')
-    .upsert({ user_id: userId, key, value }, { onConflict: 'user_id,key' })
+    .upsert({ user_id: userId, key, value }, { onConflict: 'user_id' })
   if (error) throw new Error(error.message)
 }
 

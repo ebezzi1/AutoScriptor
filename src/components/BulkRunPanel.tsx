@@ -211,9 +211,9 @@ export function BulkRunPanel({ project, features, testCases, onClose }: Props) {
     <Modal
       title="Run Commands"
       onClose={onClose}
-      footer={<Btn variant="ghost" onClick={onClose}>Close</Btn>}
+      wide
     >
-      <div className="flex flex-col gap-5 min-w-[600px]">
+      <div className="flex flex-col gap-5">
 
         {/* Options bar */}
         <div className="flex items-center gap-4 px-1">

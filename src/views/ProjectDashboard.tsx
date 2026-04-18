@@ -70,7 +70,7 @@ export function ProjectDashboard({ projectId }: Props) {
   }
 
   return (
-    <div className="p-10 max-w-4xl">
+    <div className="py-10 px-6 max-w-4xl mx-auto">
       {/* Agent not-running banner */}
       {!isConnected && !bannerDismissed && (
         <div className="flex items-center gap-3 mb-6 px-4 py-3 rounded-lg border border-vsc-border bg-vsc-panel text-xs text-vsc-muted">
@@ -92,61 +92,45 @@ export function ProjectDashboard({ projectId }: Props) {
           </button>
         </div>
       )}
-      {/* Header */}
-      <div className="flex items-start justify-between mb-10">
-        <div>
-          <p className="text-xs text-vsc-dim font-semibold uppercase tracking-widest mb-2">Project</p>
-          <h1 className="text-3xl font-bold text-vsc-text tracking-tight">{project.name}</h1>
-          {project.description && (
-            <p className="text-sm text-vsc-muted mt-1.5">{project.description}</p>
+
+      {/* Title */}
+      <div className="mb-3">
+        <p className="text-xs text-vsc-dim font-semibold uppercase tracking-widest mb-2">Project</p>
+        <h1 className="text-3xl font-bold text-vsc-text tracking-tight">{project.name}</h1>
+        {project.description && (
+          <p className="text-sm text-vsc-muted mt-1.5">{project.description}</p>
+        )}
+      </div>
+
+      {/* Action buttons */}
+      <div className="flex items-center gap-2 mb-8 flex-wrap">
+        <Btn variant="ghost" onClick={() => navigate({ type: 'project-settings', projectId })}>
+          Settings
+        </Btn>
+        <Btn variant="ghost" onClick={() => setShowCicd(true)}>
+          CI/CD
+          {project.cicd && (
+            <span className="w-1.5 h-1.5 rounded-full bg-vsc-accent shrink-0" />
           )}
-        </div>
-        <div className="flex gap-2.5 pt-1">
-          <Btn variant="ghost" onClick={() => navigate({ type: 'project-settings', projectId })}>
-            Settings
+        </Btn>
+        <Btn variant="ghost" onClick={() => setShowTestPlan(true)}>
+          Test Plan
+        </Btn>
+        <Btn variant="ghost" onClick={() => setShowMatrix(true)}>
+          Export Matrix
+        </Btn>
+        <Btn variant="ghost" onClick={() => setShowRunPanel(true)}>
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" className="shrink-0">
+            <path d="M2 1l7 4-7 4V1z" fill="currentColor" fillOpacity="0.7"/>
+          </svg>
+          Run
+        </Btn>
+        <div className="flex-1" />
+        {!isReadOnly && (
+          <Btn variant="primary" onClick={() => setCreating(true)}>
+            + Add feature
           </Btn>
-          <Btn variant="ghost" onClick={() => setShowCicd(true)}>
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="shrink-0">
-              <rect x="1" y="1" width="4" height="4" rx="0.5" stroke="currentColor" strokeWidth="1.2"/>
-              <rect x="7" y="1" width="4" height="4" rx="0.5" stroke="currentColor" strokeWidth="1.2"/>
-              <rect x="4" y="7" width="4" height="4" rx="0.5" stroke="currentColor" strokeWidth="1.2"/>
-              <path d="M3 5v1.5a1.5 1.5 0 001.5 1.5h3A1.5 1.5 0 009 6.5V5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-            </svg>
-            CI/CD
-            {project.cicd && (
-              <span className="w-1.5 h-1.5 rounded-full bg-vsc-accent shrink-0" />
-            )}
-          </Btn>
-          <Btn variant="ghost" onClick={() => setShowTestPlan(true)}>
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="shrink-0">
-              <path d="M2.5 1h5.5L10 3.5V11h-7.5V1z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/>
-              <path d="M7 1v3h3" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/>
-              <path d="M4 5.5h4M4 7.5h4M4 9.5h2.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-            </svg>
-            Test Plan
-          </Btn>
-          <Btn variant="ghost" onClick={() => setShowMatrix(true)}>
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="shrink-0">
-              <rect x="1" y="1" width="10" height="10" rx="1" stroke="currentColor" strokeWidth="1.2"/>
-              <path d="M1 4h10M1 7h10M4 4v7M8 4v7" stroke="currentColor" strokeWidth="1.2"/>
-            </svg>
-            Export Matrix
-          </Btn>
-          <Btn variant="ghost" onClick={() => setShowRunPanel(true)}>
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="shrink-0">
-              <path d="M2 1.5l9 4.5-9 4.5V1.5z" fill="currentColor" fillOpacity="0.7"/>
-            </svg>
-            Run
-          </Btn>
-          {!isReadOnly && (
-            <Btn variant="primary" onClick={() => setCreating(true)}>
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="shrink-0">
-                <path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-              </svg>
-              Add feature
-            </Btn>
-          )}
-        </div>
+        )}
       </div>
 
       {/* Stats */}

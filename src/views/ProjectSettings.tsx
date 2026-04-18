@@ -152,133 +152,141 @@ export function ProjectSettings({ projectId }: Props) {
   }
 
   return (
-    <div className="p-8 max-w-2xl">
-      <div className="mb-8">
+    <div className="py-10 px-6 max-w-3xl mx-auto">
+      <div className="mb-10">
         <p className="text-[9px] text-vsc-accent uppercase tracking-[0.16em] mb-1.5">@ Configuration</p>
         <h1 className="text-xl font-semibold text-vsc-text tracking-tight">Project settings</h1>
       </div>
 
-      <div className="flex flex-col gap-5">
-        <Field label="Project name">
-          <Input
-            value={project.name}
-            onChange={(e) => update('name', e.target.value)}
-          />
-        </Field>
+      <div className="flex flex-col gap-8">
+        {/* ── General ──────────────────────────────────────────── */}
+        <section>
+          <SectionTitle>General</SectionTitle>
+          <div className="flex flex-col gap-4">
+            <Field label="Project name">
+              <Input
+                value={project.name}
+                onChange={(e) => update('name', e.target.value)}
+              />
+            </Field>
 
-        <Field label="Description">
-          <textarea
-            value={project.description}
-            onChange={(e) => update('description', e.target.value)}
-            rows={2}
-            className="w-full bg-vsc-bg border border-vsc-border rounded-sm px-3 py-1.5 text-xs text-vsc-text placeholder-vsc-dim focus:border-vsc-accent focus:shadow-[0_0_0_1px_rgba(200,152,32,0.15)] outline-none resize-none transition-all"
-            placeholder="What does this project test?"
-          />
-        </Field>
+            <Field label="Description">
+              <textarea
+                value={project.description}
+                onChange={(e) => update('description', e.target.value)}
+                rows={2}
+                className="w-full bg-vsc-bg border border-vsc-border rounded-sm px-3 py-1.5 text-xs text-vsc-text placeholder-vsc-dim focus:border-vsc-accent focus:shadow-[0_0_0_1px_rgba(200,152,32,0.15)] outline-none resize-none transition-all"
+                placeholder="What does this project test?"
+              />
+            </Field>
+          </div>
+        </section>
 
-        <div className="h-px bg-vsc-border/40" />
+        <div className="h-px bg-vsc-border/30" />
 
-        <div className="grid grid-cols-2 gap-4">
-          <Field label="Language">
-            <Select
-              value={project.language}
-              onChange={(e) => update('language', e.target.value as Project['language'])}
-            >
-              <option value="typescript">TypeScript</option>
-              <option value="javascript">JavaScript</option>
-            </Select>
-          </Field>
+        {/* ── Test Configuration ───────────────────────────────── */}
+        <section>
+          <SectionTitle>Test Configuration</SectionTitle>
+          <div className="flex flex-col gap-4">
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Language">
+                <Select
+                  value={project.language}
+                  onChange={(e) => update('language', e.target.value as Project['language'])}
+                >
+                  <option value="typescript">TypeScript</option>
+                  <option value="javascript">JavaScript</option>
+                </Select>
+              </Field>
 
-          <Field label="Base URL">
-            <Input
-              value={project.baseUrl}
-              onChange={(e) => update('baseUrl', e.target.value)}
-              placeholder="https://staging.myapp.com"
-            />
-          </Field>
-        </div>
+              <Field label="Base URL">
+                <Input
+                  value={project.baseUrl}
+                  onChange={(e) => update('baseUrl', e.target.value)}
+                  placeholder="https://staging.myapp.com"
+                />
+              </Field>
+            </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <Field label="Browser">
-            <Select
-              value={project.browser}
-              onChange={(e) => update('browser', e.target.value as Project['browser'])}
-            >
-              <option value="chromium">Chromium</option>
-              <option value="firefox">Firefox</option>
-              <option value="webkit">WebKit</option>
-              <option value="all">All browsers</option>
-            </Select>
-          </Field>
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Browser">
+                <Select
+                  value={project.browser}
+                  onChange={(e) => update('browser', e.target.value as Project['browser'])}
+                >
+                  <option value="chromium">Chromium</option>
+                  <option value="firefox">Firefox</option>
+                  <option value="webkit">WebKit</option>
+                  <option value="all">All browsers</option>
+                </Select>
+              </Field>
 
-          <Field label="Default timeout (ms)">
-            <Input
-              type="number"
-              value={project.defaultTimeout}
-              onChange={(e) => update('defaultTimeout', Number(e.target.value))}
-            />
-          </Field>
-        </div>
+              <Field label="Default timeout (ms)">
+                <Input
+                  type="number"
+                  value={project.defaultTimeout}
+                  onChange={(e) => update('defaultTimeout', Number(e.target.value))}
+                />
+              </Field>
+            </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <Field label="Default selector strategy">
-            <Select
-              value={project.selectorStrategy}
-              onChange={(e) => update('selectorStrategy', e.target.value as Project['selectorStrategy'])}
-            >
-              <option value="css">CSS</option>
-              <option value="xpath">XPath</option>
-              <option value="data-testid">data-testid</option>
-              <option value="role">Role</option>
-              <option value="text">Text</option>
-              <option value="label">Label</option>
-            </Select>
-          </Field>
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Default selector strategy">
+                <Select
+                  value={project.selectorStrategy}
+                  onChange={(e) => update('selectorStrategy', e.target.value as Project['selectorStrategy'])}
+                >
+                  <option value="css">CSS</option>
+                  <option value="xpath">XPath</option>
+                  <option value="data-testid">data-testid</option>
+                  <option value="role">Role</option>
+                  <option value="text">Text</option>
+                  <option value="label">Label</option>
+                </Select>
+              </Field>
 
-          <Field label="Retries">
-            <Input
-              type="number"
-              min={0}
-              max={5}
-              value={project.retries}
-              onChange={(e) => update('retries', Number(e.target.value))}
-            />
-          </Field>
-        </div>
+              <Field label="Retries">
+                <Input
+                  type="number"
+                  min={0}
+                  max={5}
+                  value={project.retries}
+                  onChange={(e) => update('retries', Number(e.target.value))}
+                />
+              </Field>
+            </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <Field label="Reporter">
-            <Select
-              value={project.reporter}
-              onChange={(e) => update('reporter', e.target.value as Project['reporter'])}
-            >
-              <option value="html">HTML</option>
-              <option value="json">JSON</option>
-              <option value="junit">JUnit</option>
-              <option value="list">List</option>
-            </Select>
-          </Field>
-        </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Reporter">
+                <Select
+                  value={project.reporter}
+                  onChange={(e) => update('reporter', e.target.value as Project['reporter'])}
+                >
+                  <option value="html">HTML</option>
+                  <option value="json">JSON</option>
+                  <option value="junit">JUnit</option>
+                  <option value="list">List</option>
+                </Select>
+              </Field>
+            </div>
 
-        <div className="h-px bg-vsc-border/40" />
+            <div className="pt-1">
+              <Toggle
+                checked={project.generatePOM}
+                onChange={(v) => update('generatePOM', v)}
+                label="Generate Page Object Model (POM)"
+              />
+            </div>
+          </div>
+        </section>
 
-        <div className="pt-1">
-          <Toggle
-            checked={project.generatePOM}
-            onChange={(v) => update('generatePOM', v)}
-            label="Generate Page Object Model (POM)"
-          />
-        </div>
+        <div className="h-px bg-vsc-border/30" />
 
-        <div className="h-px bg-vsc-border/40" />
-
-        {/* Environment Profiles */}
-        <div>
+        {/* ── Environment Profiles ──────────────────────────── */}
+        <section>
           <div className="flex items-center gap-3 mb-4">
-            <p className="text-[9px] font-semibold text-vsc-dim uppercase tracking-[0.14em] shrink-0">
-              Environment Profiles
-            </p>
-            <div className="flex-1 h-px bg-vsc-border/50" />
+            <SectionTitle className="mb-0">Environment Profiles</SectionTitle>
+            <div className="flex-1" />
             <button
               onClick={addEnv}
               className="text-[9px] uppercase tracking-wider border border-vsc-border text-vsc-muted px-2 py-1 rounded-sm hover:border-vsc-accent/60 hover:text-vsc-accent transition-all"
@@ -379,18 +387,13 @@ export function ProjectSettings({ projectId }: Props) {
               )
             })}
           </div>
-        </div>
+        </section>
 
-        <div className="h-px bg-vsc-border/40" />
+        <div className="h-px bg-vsc-border/30" />
 
-        {/* Authentication */}
-        <div>
-          <div className="flex items-center gap-3 mb-4">
-            <p className="text-[9px] font-semibold text-vsc-dim uppercase tracking-[0.14em] shrink-0">
-              Authentication
-            </p>
-            <div className="flex-1 h-px bg-vsc-border/50" />
-          </div>
+        {/* ── Authentication ──────────────────────────────────── */}
+        <section>
+          <SectionTitle>Authentication</SectionTitle>
 
           <div className="pt-1">
             <Toggle
@@ -483,18 +486,13 @@ export function ProjectSettings({ projectId }: Props) {
               + Add Role
             </button>
           </div>
-        </div>
+        </section>
 
-        <div className="h-px bg-vsc-border/40" />
+        <div className="h-px bg-vsc-border/30" />
 
-        {/* Local Directory */}
-        <div>
-          <div className="flex items-center gap-3 mb-4">
-            <p className="text-[9px] font-semibold text-vsc-dim uppercase tracking-[0.14em] shrink-0">
-              Local Directory
-            </p>
-            <div className="flex-1 h-px bg-vsc-border/50" />
-          </div>
+        {/* ── Local Directory ─────────────────────────────────── */}
+        <section>
+          <SectionTitle>Local Directory</SectionTitle>
 
           <p className="text-[10px] text-vsc-dim mb-4">
             Set the local directory where generated test files will be written and Playwright tests will run.
@@ -554,7 +552,7 @@ export function ProjectSettings({ projectId }: Props) {
               </Btn>
             )}
           </div>
-        </div>
+        </section>
 
         {showScaffold && (
           <ProjectScaffoldModal
@@ -570,16 +568,11 @@ export function ProjectSettings({ projectId }: Props) {
           />
         )}
 
-        <div className="h-px bg-vsc-border/40" />
+        <div className="h-px bg-vsc-border/30" />
 
-        {/* Agent */}
-        <div>
-          <div className="flex items-center gap-3 mb-4">
-            <p className="text-[9px] font-semibold text-vsc-dim uppercase tracking-[0.14em] shrink-0">
-              Agent
-            </p>
-            <div className="flex-1 h-px bg-vsc-border/50" />
-          </div>
+        {/* ── Agent Connection ────────────────────────────────── */}
+        <section>
+          <SectionTitle>Agent Connection</SectionTitle>
 
           <p className="text-[10px] text-vsc-dim mb-4">
             Connect to a running <code className="font-mono text-vsc-muted">autoscriptor-agent</code> to run tests, sync files, and open reports locally.
@@ -681,12 +674,23 @@ export function ProjectSettings({ projectId }: Props) {
               </code>
             </p>
           </div>
-        </div>
+        </section>
 
-        <div className="pt-1">
+        <div className="pt-2">
           <Btn variant="primary" onClick={save}>Save settings</Btn>
         </div>
       </div>
+    </div>
+  )
+}
+
+function SectionTitle({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div className={`flex items-center gap-3 mb-4 ${className}`}>
+      <p className="text-[10px] font-semibold text-vsc-dim uppercase tracking-[0.14em] shrink-0">
+        {children}
+      </p>
+      <div className="flex-1 h-px bg-vsc-border/40" />
     </div>
   )
 }

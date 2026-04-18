@@ -194,27 +194,72 @@ export function BulkRunPanel({ project, features, testCases, onClose }: Props) {
     priority: 'By priority',
   }
 
+  // Build all commands (prebuilt + dynamic builder) with current options applied
+  const dynamicPrebuilt = prebuilt.map((item) => {
+    let cmd = item.cmd
+    // Apply current headed/browser options to quick commands
+    if (headed && !cmd.includes('--headed') && !cmd.includes('--debug') && !cmd.includes('--ui')) {
+      cmd += ' --headed'
+    }
+    if (browser && !cmd.includes('--browser=') && !cmd.includes('--project=') && item.key !== 'chromium' && item.key !== 'firefox' && item.key !== 'webkit') {
+      cmd += ` ${browserFlag(browser)}`
+    }
+    return { ...item, cmd }
+  })
+
   return (
     <Modal
       title="Run Commands"
       onClose={onClose}
       footer={<Btn variant="ghost" onClick={onClose}>Close</Btn>}
     >
-      <div className="flex flex-col gap-5 min-w-[520px]">
+      <div className="flex flex-col gap-5 min-w-[600px]">
 
-        {/* Pre-built commands */}
+        {/* Options bar */}
+        <div className="flex items-center gap-4 px-1">
+          <label className="flex items-center gap-1.5 cursor-pointer group">
+            <input
+              type="checkbox"
+              checked={headed}
+              onChange={(e) => setHeaded(e.target.checked)}
+              className="w-3 h-3 accent-vsc-accent"
+            />
+            <span className="text-[10px] text-vsc-muted group-hover:text-vsc-text transition-colors">
+              --headed
+            </span>
+          </label>
+
+          <div className="flex items-center gap-1.5">
+            <span className="text-[9px] text-vsc-dim uppercase tracking-wide">Browser</span>
+            <select
+              value={browser}
+              onChange={(e) => setBrowser(e.target.value)}
+              className="bg-vsc-panel border border-vsc-border text-vsc-text text-[10px] px-1.5 py-0.5 rounded-sm outline-none focus:border-vsc-accent/50"
+            >
+              <option value="">all</option>
+              <option value="chromium">chromium</option>
+              <option value="firefox">firefox</option>
+              <option value="webkit">webkit</option>
+            </select>
+          </div>
+
+          {!isConnected && (
+            <span className="text-[9px] text-vsc-dim ml-auto" title="Connect the agent to enable Run buttons">
+              Agent not connected
+            </span>
+          )}
+        </div>
+
+        {/* Quick commands */}
         <div>
           <p className="text-[9px] text-vsc-dim uppercase tracking-widest mb-2">Quick commands</p>
           <div className="flex flex-col gap-1">
-            {prebuilt.map((item) => (
+            {dynamicPrebuilt.map((item) => (
               <div
                 key={item.key}
-                className="flex items-center gap-2 bg-vsc-bg border border-vsc-border rounded-sm px-3 py-2 group"
+                className="flex items-center gap-2 bg-vsc-bg border border-vsc-border rounded-sm px-3 py-2"
               >
-                <span className="text-[9px] text-vsc-muted uppercase tracking-wide w-[130px] shrink-0">
-                  {item.label}
-                </span>
-                <code className="flex-1 text-[11px] text-vsc-accent font-mono truncate">
+                <code className="flex-1 text-[11px] text-vsc-accent font-mono whitespace-nowrap">
                   {item.cmd}
                 </code>
                 <button
@@ -225,9 +270,9 @@ export function BulkRunPanel({ project, features, testCases, onClose }: Props) {
                 </button>
                 <button
                   onClick={() => handleRunWithChecks(item.cmd)}
-                  disabled={syncing}
-                  className="text-[9px] font-medium text-white bg-vsc-accent hover:bg-vsc-accent-hover transition-colors shrink-0 px-1.5 py-0.5 rounded-sm opacity-0 group-hover:opacity-100 disabled:opacity-50"
-                  title="Run Now"
+                  disabled={syncing || !isConnected}
+                  className="text-[9px] font-medium text-white bg-vsc-accent hover:bg-vsc-accent-hover transition-colors shrink-0 px-1.5 py-0.5 rounded-sm flex items-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed"
+                  title={!isConnected ? 'Connect the agent to run tests' : 'Run'}
                 >
                   <svg width="8" height="8" viewBox="0 0 10 10" fill="none">
                     <path d="M2 1l7 4-7 4V1z" fill="currentColor"/>
@@ -333,37 +378,6 @@ export function BulkRunPanel({ project, features, testCases, onClose }: Props) {
               </div>
             )}
 
-            {/* Options row */}
-            <div className="flex items-center gap-4 pt-1 border-t border-vsc-border/50">
-              {/* Headed toggle */}
-              <label className="flex items-center gap-1.5 cursor-pointer group">
-                <input
-                  type="checkbox"
-                  checked={headed}
-                  onChange={(e) => setHeaded(e.target.checked)}
-                  className="w-3 h-3 accent-vsc-accent"
-                />
-                <span className="text-[10px] text-vsc-muted group-hover:text-vsc-text transition-colors">
-                  --headed
-                </span>
-              </label>
-
-              {/* Browser selector */}
-              <div className="flex items-center gap-1.5">
-                <span className="text-[9px] text-vsc-dim uppercase tracking-wide">Browser</span>
-                <select
-                  value={browser}
-                  onChange={(e) => setBrowser(e.target.value)}
-                  className="bg-vsc-panel border border-vsc-border text-vsc-text text-[10px] px-1.5 py-0.5 rounded-sm outline-none focus:border-vsc-accent/50"
-                >
-                  <option value="">all</option>
-                  <option value="chromium">chromium</option>
-                  <option value="firefox">firefox</option>
-                  <option value="webkit">webkit</option>
-                </select>
-              </div>
-            </div>
-
             {/* Generated command output */}
             <div className="flex items-center gap-2 bg-vsc-sidebar border border-vsc-accent/30 rounded-sm px-3 py-2">
               <code className="flex-1 text-[12px] text-vsc-accent font-mono break-all leading-relaxed">
@@ -377,8 +391,9 @@ export function BulkRunPanel({ project, features, testCases, onClose }: Props) {
               </button>
               <button
                 onClick={() => handleRunWithChecks(command)}
-                disabled={syncing}
-                className="text-[9px] font-medium text-white bg-vsc-accent hover:bg-vsc-accent-hover transition-colors shrink-0 px-2.5 py-1 rounded-sm flex items-center gap-1 disabled:opacity-50"
+                disabled={syncing || !isConnected}
+                className="text-[9px] font-medium text-white bg-vsc-accent hover:bg-vsc-accent-hover transition-colors shrink-0 px-2.5 py-1 rounded-sm flex items-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed"
+                title={!isConnected ? 'Connect the agent to run tests' : 'Run'}
               >
                 {syncing ? (
                   <>
@@ -386,14 +401,14 @@ export function BulkRunPanel({ project, features, testCases, onClose }: Props) {
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
                     </svg>
-                    Syncing files...
+                    Syncing...
                   </>
                 ) : (
                   <>
                     <svg width="9" height="9" viewBox="0 0 10 10" fill="none" className="shrink-0">
                       <path d="M2 1l7 4-7 4V1z" fill="currentColor"/>
                     </svg>
-                    Run Now
+                    Run
                   </>
                 )}
               </button>

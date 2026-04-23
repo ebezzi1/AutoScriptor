@@ -7,6 +7,7 @@ import { Btn } from '../components/common/Btn'
 import { Field, Input } from '../components/common/Field'
 import { ChipInput } from '../components/common/ChipInput'
 import { StepTable } from '../components/steps/StepTable'
+import { useAgent } from '../store/AgentContext'
 import { PRIORITY_COLORS } from '../types'
 import type { TestCase, Feature, Priority } from '../types'
 
@@ -35,11 +36,13 @@ export function FeatureView({ projectId, featureId }: Props) {
   const { state, dispatch, navigate } = useApp()
   const { toast } = useToast()
   const { isReadOnly } = usePermissions()
+  const { isConnected, runCommand } = useAgent()
   const [creatingTC, setCreatingTC] = useState(false)
   const [tcName, setTcName] = useState('')
   const [tcType, setTcType] = useState<'ui' | 'api'>('ui')
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
 
+  const project = state.projects.find((p) => p.id === projectId)
   const feature = state.features.find((f) => f.id === featureId)
   const testCases = state.testCases.filter((tc) => tc.featureId === featureId)
   const projectUtils = state.utils.filter((u) => u.projectId === projectId)
@@ -97,8 +100,25 @@ export function FeatureView({ projectId, featureId }: Props) {
             />
           </div>
         </div>
-        {!isReadOnly && (
-          <div className="pt-8 shrink-0">
+        <div className="pt-8 shrink-0 flex items-center gap-2.5">
+          {isConnected && project?.localDirectory && feature && (
+            <button
+              onClick={() => {
+                const s = (n: string) => n.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+                const cmd = `npx playwright test tests/${s(feature.name)}/`
+                runCommand(cmd, projectId)
+                toast('Running feature tests…')
+              }}
+              title="Run all tests in this feature"
+              className="inline-flex items-center gap-1.5 border border-vsc-accent/40 bg-vsc-accent/10 hover:bg-vsc-accent/20 text-vsc-accent transition-all duration-150 rounded-md px-3 py-1.5 text-xs font-medium"
+            >
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none" className="shrink-0">
+                <path d="M2 1l7 4-7 4V1z" fill="currentColor" fillOpacity="0.8"/>
+              </svg>
+              Run
+            </button>
+          )}
+          {!isReadOnly && (
             <Btn
               variant="danger"
               size="sm"
@@ -110,8 +130,8 @@ export function FeatureView({ projectId, featureId }: Props) {
             >
               Delete feature
             </Btn>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* beforeEach / afterEach */}

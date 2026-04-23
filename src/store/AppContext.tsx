@@ -12,6 +12,7 @@ import type { AppState, AppAction, AppView, TestCase } from '../types'
 import { useAuth } from '../components/auth/AuthProvider'
 import { useToast } from '../components/common/Toast'
 import { loadFullState, syncAction } from '../lib/database'
+import { syncAfterAction } from '../lib/fileSyncBridge'
 import {
   createVersionSnapshot,
   pruneOldVersionSnapshots,
@@ -315,15 +316,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // Compute next state (same pure function)
       const nextState = reducer(prevState, action)
 
-      // Sync to Supabase asynchronously
-      syncAction(action, teamId!, prevState, nextState).catch((err: Error) => {
-        console.error('[AppProvider] DB sync failed:', err)
-        showToast(`Save failed: ${err.message}`, 'error')
-        // Revert by reloading authoritative state from DB
-        loadFullState(teamId!)
-          .then((fresh) => dispatchRaw({ type: 'HYDRATE', state: fresh }))
-          .catch(console.error)
-      })
+      // Sync to Supabase asynchronously, then sync files to disk
+      syncAction(action, teamId!, prevState, nextState)
+        .then(() => {
+          // Fire-and-forget file sync — uses nextState for code generation
+          syncAfterAction(action, nextState).catch((err) =>
+            console.warn('[AppProvider] File sync skipped:', (err as Error).message)
+          )
+        })
+        .catch((err: Error) => {
+          console.error('[AppProvider] DB sync failed:', err)
+          showToast(`Save failed: ${err.message}`, 'error')
+          // Revert by reloading authoritative state from DB
+          loadFullState(teamId!)
+            .then((fresh) => dispatchRaw({ type: 'HYDRATE', state: fresh }))
+            .catch(console.error)
+        })
 
       // ── Auto-snapshot logic ────────────────────────────────────────────────
       if (action.type === 'UPDATE_TC') {

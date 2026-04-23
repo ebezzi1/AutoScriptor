@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useApp } from '../../store/AppContext'
+import { useAgent } from '../../store/AgentContext'
 import { Btn } from '../common/Btn'
 import { DuplicateToModal } from '../DuplicateToModal'
 import { BulkTcBar } from '../BulkTcBar'
@@ -39,6 +40,7 @@ export function Sidebar() {
   const { state, navigate, dispatch, modifiedTcIds } = useApp()
   const { currentView } = state
   const { toast } = useToast()
+  const { latestResults, runner, loadLatestResults } = useAgent()
 
   const activeProjectId =
     (currentView.type !== 'projects' && currentView.type !== 'team-settings')
@@ -51,6 +53,41 @@ export function Sidebar() {
   const allProjectTCs = state.testCases.filter((tc) => tc.projectId === activeProjectId)
   const activeEnv = project?.environments?.find((e) => e.id === project?.activeEnvironmentId) ?? null
   const activeEnvHex = activeEnv ? getEnvColor(activeEnv) : null
+
+  // Load latest run results on mount and after runs complete
+  useEffect(() => {
+    if (activeProjectId) loadLatestResults(activeProjectId)
+  }, [activeProjectId, runner.isRunning]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Build TC ID → result status map from latest results
+  const tcResultMap = useMemo(() => {
+    const map = new Map<string, { status: string; duration: number; error?: string }>()
+    // From DB results (have testCaseId)
+    for (const r of latestResults.results) {
+      if (r.testCaseId) {
+        map.set(r.testCaseId, { status: r.status, duration: r.duration, error: r.error })
+      }
+    }
+    // From parsed results, try matching by name
+    if (latestResults.parsedResults) {
+      for (const t of latestResults.parsedResults.tests) {
+        // Try to match by test name to TC name
+        const slugify = (s: string) => s.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+        const featureSlug = t.file.match(/tests\/([^/]+)\//)?.[1] ?? ''
+        const feature = features.find((f) => slugify(f.name) === featureSlug)
+        if (!feature) continue
+        const featureTCs = allProjectTCs.filter((tc) => tc.featureId === feature.id)
+        const tc = featureTCs.find((tc) =>
+          t.name.toLowerCase().includes(tc.name.toLowerCase()) ||
+          tc.name.toLowerCase().includes(t.name.toLowerCase())
+        )
+        if (tc && !map.has(tc.id)) {
+          map.set(tc.id, { status: t.status, duration: t.duration, error: t.error })
+        }
+      }
+    }
+    return map
+  }, [latestResults, features, allProjectTCs])
 
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
@@ -492,7 +529,26 @@ export function Sidebar() {
                                 <span className="text-[9px] text-yellow-500/60 font-medium shrink-0 px-1">off</span>
                               )}
 
-                              {!tc.disabled && modifiedTcIds.has(tc.id) && (
+                              {/* Test result dot */}
+                              {!tc.disabled && tcResultMap.has(tc.id) && (() => {
+                                const res = tcResultMap.get(tc.id)!
+                                const dotColor =
+                                  res.status === 'passed' ? 'bg-green-400' :
+                                  res.status === 'failed' || res.status === 'timedOut' ? 'bg-red-400' :
+                                  'bg-gray-500'
+                                const tipText =
+                                  res.status === 'passed' ? `Passed (${res.duration < 1000 ? res.duration + 'ms' : (res.duration / 1000).toFixed(1) + 's'})` :
+                                  res.status === 'failed' ? `Failed${res.error ? ': ' + res.error.slice(0, 80) : ''}` :
+                                  'Skipped'
+                                return (
+                                  <span
+                                    title={tipText}
+                                    className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotColor}`}
+                                  />
+                                )
+                              })()}
+
+                              {!tc.disabled && !tcResultMap.has(tc.id) && modifiedTcIds.has(tc.id) && (
                                 <span
                                   title="Modified since last code generation"
                                   className="w-1.5 h-1.5 rounded-full bg-vsc-accent shrink-0 opacity-70"

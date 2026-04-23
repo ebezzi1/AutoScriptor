@@ -172,7 +172,7 @@ export function BulkRunPanel({ project, features, testCases, onClose }: Props) {
     setSyncing(false)
     if (!synced) return
 
-    runCommand(cmd)
+    runCommand(cmd, project.id)
     onClose()
   }, [client, isConnected, project, syncFiles, runCommand, onClose, toast, navigate, setShowSetupWizard])
 

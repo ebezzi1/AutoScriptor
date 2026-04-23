@@ -1,13 +1,12 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState } from 'react'
 import { useApp } from '../store/AppContext'
 import { useToast } from '../components/common/Toast'
 import { useAgent } from '../store/AgentContext'
 import { Field, Input, Select, Toggle } from '../components/common/Field'
 import { Btn } from '../components/common/Btn'
 import { StepTable } from '../components/steps/StepTable'
-import { ProjectScaffoldModal } from '../components/ProjectScaffoldModal'
+import { ProjectDirectorySettings } from '../components/project/ProjectDirectorySettings'
 import type { Project, EnvProfile, AuthRole, AuthConfig } from '../types'
-import type { ProjectInfoResponse } from '../lib/agent'
 import { getEnvColor, AUTH_ROLE_COLORS, toKebab } from '../types'
 
 const STANDARD_ENV_NAMES = ['dev', 'development', 'local', 'staging', 'stage', 'qa', 'uat', 'production', 'prod']
@@ -17,43 +16,13 @@ interface Props { projectId: string }
 export function ProjectSettings({ projectId }: Props) {
   const { state, dispatch } = useApp()
   const { toast } = useToast()
-  const { agentUrl, agentToken, setAgentUrl, setAgentToken, saveSettings, testConnection, setShowSetupWizard, client, isConnected } = useAgent()
+  const { agentUrl, agentToken, setAgentUrl, setAgentToken, saveSettings, testConnection, setShowSetupWizard, isConnected, consecutiveFailures } = useAgent()
   const [showToken, setShowToken] = useState(false)
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState<{ ok: boolean; version?: string; uptime?: number; error?: string } | null>(null)
-  const [dirInput, setDirInput] = useState('')
-  const [dirStatus, setDirStatus] = useState<ProjectInfoResponse | null>(null)
-  const [dirChecking, setDirChecking] = useState(false)
-  const [showScaffold, setShowScaffold] = useState(false)
   const project = state.projects.find((p) => p.id === projectId)
   const projectVars = state.variables.filter((v) => v.projectId === projectId && v.scope === 'project')
   const projectUtils = state.utils.filter((u) => u.projectId === projectId)
-
-  // Sync dirInput from project on load
-  useEffect(() => {
-    if (project?.localDirectory && !dirInput) setDirInput(project.localDirectory)
-  }, [project?.localDirectory]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const checkDirectory = useCallback(async () => {
-    if (!client || !dirInput.trim()) return
-    setDirChecking(true)
-    try {
-      await client.setProjectDir(dirInput.trim())
-      const info = await client.getProjectInfo()
-      setDirStatus(info)
-    } catch {
-      setDirStatus(null)
-    } finally {
-      setDirChecking(false)
-    }
-  }, [client, dirInput])
-
-  // Auto-check directory on load if already set
-  useEffect(() => {
-    if (project?.localDirectory && isConnected && client) {
-      checkDirectory()
-    }
-  }, [isConnected]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!project) return <div className="p-8 text-vsc-muted text-xs">Project not found</div>
 
@@ -490,83 +459,13 @@ export function ProjectSettings({ projectId }: Props) {
 
         <div className="h-px bg-vsc-border/30" />
 
-        {/* ── Local Directory ─────────────────────────────────── */}
-        <section>
-          <SectionTitle>Local Directory</SectionTitle>
-
-          <p className="text-[10px] text-vsc-dim mb-4">
-            Set the local directory where generated test files will be written and Playwright tests will run.
-          </p>
-
-          <div className="flex flex-col gap-3">
-            <Field label="Project directory">
-              <div className="flex gap-2">
-                <Input
-                  value={dirInput}
-                  onChange={(e) => setDirInput(e.target.value)}
-                  placeholder="/Users/me/my-project"
-                  className="font-mono"
-                />
-                <button
-                  onClick={async () => {
-                    if (!dirInput.trim()) return
-                    update('localDirectory', dirInput.trim())
-                    toast('Directory saved')
-                    if (isConnected && client) {
-                      await checkDirectory()
-                    }
-                  }}
-                  disabled={!dirInput.trim() || !isConnected || dirChecking}
-                  className="text-[9px] uppercase tracking-wider border border-vsc-border text-vsc-muted px-3 py-1.5 rounded-sm hover:border-vsc-accent/60 hover:text-vsc-accent transition-all disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
-                >
-                  {dirChecking ? 'Checking...' : 'Set Directory'}
-                </button>
-              </div>
-            </Field>
-
-            {!isConnected && (
-              <p className="text-[10px] text-vsc-dim/70">
-                Connect the agent first to check directory status.
-              </p>
-            )}
-
-            {/* Directory status */}
-            {dirStatus && isConnected && (
-              <div className="bg-vsc-bg border border-vsc-border rounded-sm p-3 flex flex-col gap-1.5">
-                <p className="text-[9px] text-vsc-dim uppercase tracking-widest mb-1">Directory Status</p>
-                <StatusRow ok={!!dirStatus.path} label="Folder exists" />
-                <StatusRow ok={dirStatus.hasPackageJson} label="Has package.json" />
-                <StatusRow ok={dirStatus.hasPlaywright} label="Playwright installed" detail={dirStatus.playwrightVersion ? `v${dirStatus.playwrightVersion}` : undefined} />
-                <StatusRow ok={dirStatus.gitInitialized} label="Git initialized" />
-              </div>
-            )}
-
-            {/* Show Create & Setup button if dir missing or Playwright not installed */}
-            {isConnected && dirStatus && (!dirStatus.path || !dirStatus.hasPlaywright) && (
-              <Btn
-                variant="primary"
-                size="sm"
-                onClick={() => setShowScaffold(true)}
-              >
-                {!dirStatus.path ? 'Create & Setup' : 'Install Playwright'}
-              </Btn>
-            )}
-          </div>
-        </section>
-
-        {showScaffold && (
-          <ProjectScaffoldModal
-            directory={dirInput.trim()}
-            projectName={project.name}
-            onClose={() => setShowScaffold(false)}
-            onComplete={async () => {
-              update('localDirectory', dirInput.trim())
-              if (isConnected && client) {
-                await checkDirectory()
-              }
-            }}
-          />
-        )}
+        {/* ── Local Project ────────────────────────────────────── */}
+        <ProjectDirectorySettings
+          projectId={project.id}
+          projectName={project.name}
+          localDirectory={project.localDirectory}
+          onDirectoryChange={(dir) => update('localDirectory', dir)}
+        />
 
         <div className="h-px bg-vsc-border/30" />
 
@@ -576,7 +475,29 @@ export function ProjectSettings({ projectId }: Props) {
 
           <p className="text-[10px] text-vsc-dim mb-4">
             Connect to a running <code className="font-mono text-vsc-muted">autoscriptor-agent</code> to run tests, sync files, and open reports locally.
+            Agent settings are saved per project.
           </p>
+
+          {/* Reconnect banner when agent configured but unreachable */}
+          {agentToken && !isConnected && consecutiveFailures > 0 && (
+            <div className="flex items-center gap-3 mb-4 px-4 py-3 rounded-lg border border-amber-500/30 bg-amber-500/5 text-xs text-vsc-muted">
+              <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
+              <span className="flex-1">Agent not reachable. Is it running?</span>
+              <button
+                onClick={handleTestConnection}
+                disabled={testing}
+                className="text-[10px] text-vsc-accent hover:text-white font-medium transition-colors shrink-0"
+              >
+                {testing ? 'Reconnecting…' : 'Reconnect'}
+              </button>
+              <button
+                onClick={() => setShowSetupWizard(true)}
+                className="text-[10px] text-vsc-dim hover:text-vsc-accent transition-colors shrink-0"
+              >
+                Setup Agent
+              </button>
+            </div>
+          )}
 
           <div className="flex flex-col gap-3">
             <Field label="Agent URL">

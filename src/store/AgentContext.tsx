@@ -1,11 +1,15 @@
 import { createContext, useContext, useEffect, useRef, useState, useCallback, type ReactNode } from 'react'
 import { AgentClient, detectProtocol } from '../lib/agent'
-import type { HealthResponse, WSMessage } from '../lib/agent'
+import type { HealthResponse, WSMessage, ParsedResults } from '../lib/agent'
 import { useAuth } from '../components/auth/AuthProvider'
-import { getPreference, setPreference } from '../lib/database/preferences'
+import type { Project, TestRun, TestRunResult } from '../types'
+import {
+  createTestRun,
+  finishTestRun,
+  getLatestRunResults,
+} from '../lib/database/testRuns'
 
 const DEFAULT_HTTPS_URL = 'https://localhost:4568'
-const DEFAULT_HTTP_URL = 'http://localhost:4567'
 
 export interface ConnectionTestResult {
   ok: boolean
@@ -30,6 +34,12 @@ export interface RunnerState {
   startTime: number | null
 }
 
+export interface LatestResults {
+  run: TestRun | null
+  results: TestRunResult[]
+  parsedResults: ParsedResults | null
+}
+
 interface AgentContextValue {
   isConnected: boolean
   isBusy: boolean
@@ -42,20 +52,34 @@ interface AgentContextValue {
   detectedProtocol: 'https' | 'http' | null
   setAgentUrl: (url: string) => void
   setAgentToken: (token: string) => void
+  /** Persists agent URL/token/setupComplete onto the current project via callback */
   saveSettings: () => Promise<void>
   testConnection: () => Promise<ConnectionTestResult>
   connect: (token?: string) => Promise<ConnectionTestResult>
   disconnect: () => void
+  /** Called by App.tsx when the active project changes */
+  switchProject: (project: Project | null) => void
+  /** The project ID the agent is currently configured for */
+  activeProjectId: string | null
   // Runner
   runner: RunnerState
-  runCommand: (command: string) => void
+  runCommand: (command: string, projectId?: string) => void
   killCommand: () => void
   clearRunner: () => void
   showRunner: boolean
   setShowRunner: (v: boolean) => void
+  // Test results
+  latestResults: LatestResults
+  activeRunId: string | null
+  loadLatestResults: (projectId: string) => Promise<void>
   // Wizard
   showSetupWizard: boolean
   setShowSetupWizard: (v: boolean) => void
+  /** Number of consecutive health-check failures for current project */
+  consecutiveFailures: number
+  /** Callback set by App.tsx to persist agent settings on a project */
+  onSaveProjectAgent: ((projectId: string, url: string, token: string, setupComplete: boolean) => void) | null
+  setOnSaveProjectAgent: (cb: (projectId: string, url: string, token: string, setupComplete: boolean) => void) => void
 }
 
 const AgentContext = createContext<AgentContextValue | null>(null)
@@ -71,8 +95,12 @@ export function AgentProvider({ children }: { children: ReactNode }) {
   const [agentVersion, setAgentVersion] = useState<string | null>(null)
   const [agentUptime, setAgentUptime] = useState<number | null>(null)
   const [detectedProtocol, setDetectedProtocol] = useState<'https' | 'http' | null>(null)
-  const [settingsLoaded, setSettingsLoaded] = useState(false)
   const [showSetupWizard, setShowSetupWizard] = useState(false)
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(null)
+  const [consecutiveFailures, setConsecutiveFailures] = useState(0)
+
+  // Callback ref for saving project agent settings (set by App.tsx)
+  const onSaveRef = useRef<((projectId: string, url: string, token: string, setupComplete: boolean) => void) | null>(null)
 
   // Runner state
   const [runner, setRunner] = useState<RunnerState>({
@@ -84,28 +112,70 @@ export function AgentProvider({ children }: { children: ReactNode }) {
   })
   const [showRunner, setShowRunner] = useState(false)
 
+  // Test results state
+  const [latestResults, setLatestResults] = useState<LatestResults>({
+    run: null,
+    results: [],
+    parsedResults: null,
+  })
+  const [activeRunId, setActiveRunId] = useState<string | null>(null)
+  const activeRunProjectId = useRef<string | null>(null)
+
   // Stable client ref so callbacks don't go stale
   const clientRef = useRef<AgentClient | null>(null)
   const healthIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const wsReconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const wsConnectedRef = useRef(false)
 
-  // Load persisted settings from Supabase on auth
-  useEffect(() => {
-    if (!user) { setSettingsLoaded(true); return }
-    Promise.all([
-      getPreference(user.id, 'agent_url'),
-      getPreference(user.id, 'agent_token'),
-    ]).then(([url, token]) => {
-      if (url) setAgentUrl(url)
-      if (token) setAgentToken(token)
-      setSettingsLoaded(true)
-    }).catch(() => setSettingsLoaded(true))
-  }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  // ── Project switching ────────────────────────────────────────────────────────
 
-  // Rebuild client whenever url/token change (after settings loaded)
+  const switchProject = useCallback((project: Project | null) => {
+    // Disconnect existing WS
+    clientRef.current?.disconnectWebSocket()
+    if (healthIntervalRef.current) { clearInterval(healthIntervalRef.current); healthIntervalRef.current = null }
+    if (wsReconnectRef.current) { clearTimeout(wsReconnectRef.current); wsReconnectRef.current = null }
+
+    if (!project) {
+      setActiveProjectId(null)
+      setAgentUrl(DEFAULT_HTTPS_URL)
+      setAgentToken('')
+      setIsConnected(false)
+      setProjectDir(null)
+      setAgentVersion(null)
+      setAgentUptime(null)
+      setDetectedProtocol(null)
+      setConsecutiveFailures(0)
+      setShowSetupWizard(false)
+      clientRef.current = null
+      return
+    }
+
+    setActiveProjectId(project.id)
+    const url = project.agentUrl || DEFAULT_HTTPS_URL
+    const token = project.agentToken || ''
+    setAgentUrl(url)
+    setAgentToken(token)
+    setIsConnected(false)
+    setProjectDir(null)
+    setAgentVersion(null)
+    setAgentUptime(null)
+    setDetectedProtocol(null)
+    setConsecutiveFailures(0)
+
+    if (token) {
+      // Build client and try connecting
+      clientRef.current = new AgentClient(url, token)
+    } else {
+      clientRef.current = null
+      // No agent configured — show wizard if setup not complete
+      if (!project.agentSetupComplete) {
+        setShowSetupWizard(true)
+      }
+    }
+  }, [])
+
+  // Rebuild client whenever url/token change manually (e.g. user edits in settings)
   useEffect(() => {
-    if (!settingsLoaded) return
     if (agentToken) {
       if (clientRef.current) {
         clientRef.current.updateCredentials(agentUrl, agentToken)
@@ -116,7 +186,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
       clientRef.current = null
       setIsConnected(false)
     }
-  }, [agentUrl, agentToken, settingsLoaded])
+  }, [agentUrl, agentToken])
 
   // WebSocket message handler
   const handleWSMessage = useCallback((msg: WSMessage) => {
@@ -144,6 +214,35 @@ export function AgentProvider({ children }: { children: ReactNode }) {
           duration: msg.duration,
         }))
         setIsBusy(false)
+        // Persist parsed results if available
+        if (msg.results) {
+          setLatestResults((prev) => ({ ...prev, parsedResults: msg.results! }))
+          if (activeRunId) {
+            const runId = activeRunId
+            const projId = activeRunProjectId.current
+            finishTestRun(runId, msg.results, projId ?? '', [], [])
+              .then(({ results: dbResults }) => {
+                setLatestResults((prev) => ({
+                  ...prev,
+                  run: {
+                    id: runId,
+                    projectId: projId ?? '',
+                    command: '',
+                    status: msg.results!.failed > 0 ? 'failed' : 'passed',
+                    total: msg.results!.total,
+                    passed: msg.results!.passed,
+                    failed: msg.results!.failed,
+                    skipped: msg.results!.skipped,
+                    duration: msg.results!.duration,
+                    createdAt: new Date().toISOString(),
+                    finishedAt: new Date().toISOString(),
+                  },
+                  results: dbResults,
+                }))
+              })
+              .catch(console.error)
+          }
+        }
         break
       case 'killed':
         setRunner((prev) => ({
@@ -161,14 +260,13 @@ export function AgentProvider({ children }: { children: ReactNode }) {
         }))
         break
     }
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Connect WebSocket with auto-reconnect
   const connectWS = useCallback(() => {
     const client = clientRef.current
     if (!client || !isConnected) return
 
-    // Don't reconnect if already open
     if (client.isWebSocketOpen()) return
 
     client.connectWebSocket(
@@ -176,7 +274,6 @@ export function AgentProvider({ children }: { children: ReactNode }) {
       () => { wsConnectedRef.current = true },
       () => {
         wsConnectedRef.current = false
-        // Auto-reconnect after 3s
         if (wsReconnectRef.current) clearTimeout(wsReconnectRef.current)
         wsReconnectRef.current = setTimeout(() => {
           if (clientRef.current && isConnected) connectWS()
@@ -207,18 +304,20 @@ export function AgentProvider({ children }: { children: ReactNode }) {
       setProjectDir(data.projectDir ?? null)
       setAgentVersion(data.version)
       setAgentUptime(data.uptime)
+      setConsecutiveFailures(0)
       if (clientRef.current.detectedProtocol) {
         setDetectedProtocol(clientRef.current.detectedProtocol)
         setAgentUrl(clientRef.current.getBaseUrl())
       }
     } catch {
       setIsConnected(false)
+      setConsecutiveFailures((prev) => prev + 1)
     }
   }, [agentToken])
 
-  // Initial check + 30-second polling (once settings loaded and token present)
+  // Health polling: start when we have a token and a project
   useEffect(() => {
-    if (!settingsLoaded || !agentToken) return undefined
+    if (!agentToken || !activeProjectId) return undefined
 
     silentCheck()
 
@@ -226,25 +325,21 @@ export function AgentProvider({ children }: { children: ReactNode }) {
     return () => {
       if (healthIntervalRef.current) clearInterval(healthIntervalRef.current)
     }
-  }, [settingsLoaded, agentToken, silentCheck])
+  }, [agentToken, activeProjectId, silentCheck])
 
-  // Check setup wizard on first load
-  useEffect(() => {
-    if (!settingsLoaded || !user) return
-    getPreference(user.id, 'agent_setup_dismissed').then((val) => {
-      if (val !== '1' && !agentToken) {
-        setShowSetupWizard(true)
-      }
-    }).catch(() => {})
-  }, [settingsLoaded, user, agentToken])
+  // ── Save settings (persists to current project) ────────────────────────────
 
   const saveSettings = useCallback(async () => {
-    if (!user) return
-    await Promise.all([
-      setPreference(user.id, 'agent_url', agentUrl),
-      setPreference(user.id, 'agent_token', agentToken),
-    ])
-  }, [user, agentUrl, agentToken])
+    if (!activeProjectId || !onSaveRef.current) return
+    onSaveRef.current(activeProjectId, agentUrl, agentToken, true)
+  }, [activeProjectId, agentUrl, agentToken])
+
+  const setOnSaveProjectAgent = useCallback(
+    (cb: (projectId: string, url: string, token: string, setupComplete: boolean) => void) => {
+      onSaveRef.current = cb
+    },
+    []
+  )
 
   const testConnection = useCallback(async (): Promise<ConnectionTestResult> => {
     if (!agentToken) return { ok: false, error: 'No token set' }
@@ -255,11 +350,11 @@ export function AgentProvider({ children }: { children: ReactNode }) {
       setProjectDir(data.projectDir ?? null)
       setAgentVersion(data.version)
       setAgentUptime(data.uptime)
+      setConsecutiveFailures(0)
       if (client.detectedProtocol) {
         setDetectedProtocol(client.detectedProtocol)
         setAgentUrl(client.getBaseUrl())
       }
-      // Update the main client too
       if (clientRef.current) {
         clientRef.current.updateCredentials(client.getBaseUrl(), agentToken)
       } else {
@@ -276,7 +371,6 @@ export function AgentProvider({ children }: { children: ReactNode }) {
     const tok = tokenOverride ?? agentToken
     if (!tok) return { ok: false, error: 'No token set' }
 
-    // Try protocol detection
     const result = await detectProtocol(tok)
     if (!result) return { ok: false, error: 'Agent not reachable on any protocol' }
 
@@ -290,6 +384,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
       setProjectDir(data.projectDir ?? null)
       setAgentVersion(data.version)
       setAgentUptime(data.uptime)
+      setConsecutiveFailures(0)
       clientRef.current = client
       return { ok: true, version: data.version, uptime: data.uptime }
     } catch (err) {
@@ -308,19 +403,22 @@ export function AgentProvider({ children }: { children: ReactNode }) {
 
   // ── Runner commands ─────────────────────────────────────────────────────────
 
-  const runCommand = useCallback((command: string) => {
+  const runCommand = useCallback((command: string, projectId?: string) => {
     const client = clientRef.current
     if (!client || !isConnected) return
 
-    // Ensure WS is connected
+    let cmd = command
+    if (!cmd.includes('--reporter')) {
+      cmd += ' --reporter=json'
+    }
+
     if (!client.isWebSocketOpen()) {
       connectWS()
-      // Wait briefly for connection
       setTimeout(() => {
-        client.runCommand(command)
+        client.runCommand(cmd, 'json')
       }, 500)
     } else {
-      client.runCommand(command)
+      client.runCommand(cmd, 'json')
     }
 
     setRunner({
@@ -332,7 +430,25 @@ export function AgentProvider({ children }: { children: ReactNode }) {
     })
     setIsBusy(true)
     setShowRunner(true)
-  }, [isConnected, connectWS])
+
+    setLatestResults((prev) => ({ ...prev, parsedResults: null }))
+
+    if (projectId) {
+      activeRunProjectId.current = projectId
+      createTestRun(projectId, command, undefined, user?.id, user?.email ?? undefined)
+        .then((run) => setActiveRunId(run.id))
+        .catch(console.error)
+    }
+  }, [isConnected, connectWS, user?.id, user?.email])
+
+  const loadLatestResults = useCallback(async (projectId: string) => {
+    try {
+      const { run, results } = await getLatestRunResults(projectId)
+      setLatestResults({ run, results, parsedResults: null })
+    } catch (err) {
+      console.error('[AgentContext] loadLatestResults error:', err)
+    }
+  }, [])
 
   const killCommand = useCallback(() => {
     clientRef.current?.killCommand()
@@ -365,14 +481,22 @@ export function AgentProvider({ children }: { children: ReactNode }) {
       testConnection,
       connect,
       disconnect,
+      switchProject,
+      activeProjectId,
       runner,
       runCommand,
       killCommand,
       clearRunner,
       showRunner,
       setShowRunner,
+      latestResults,
+      activeRunId,
+      loadLatestResults,
       showSetupWizard,
       setShowSetupWizard,
+      consecutiveFailures,
+      onSaveProjectAgent: onSaveRef.current,
+      setOnSaveProjectAgent,
     }}>
       {children}
     </AgentContext.Provider>

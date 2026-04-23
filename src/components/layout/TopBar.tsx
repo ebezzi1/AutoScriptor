@@ -10,6 +10,7 @@ import { generateAndDownload } from '../../lib/zipBuilder'
 import { getEnvColor } from '../../types'
 import { MatrixPreviewModal } from '../MatrixPreviewModal'
 import { TestPlanModal } from '../TestPlanModal'
+import { SyncStatusIndicator } from '../sync/SyncStatusIndicator'
 
 function ThemeToggle() {
   const { theme, setTheme } = useTheme()
@@ -214,8 +215,10 @@ function UserMenu() {
 }
 
 function AgentStatusIndicator() {
-  const { isConnected, agentUrl, agentVersion, agentUptime, projectDir, disconnect, setShowSetupWizard } = useAgent()
+  const { isConnected, agentUrl, agentToken, agentVersion, agentUptime, projectDir, disconnect, setShowSetupWizard, activeProjectId, consecutiveFailures, testConnection } = useAgent()
+  const { navigate } = useApp()
   const [open, setOpen] = useState(false)
+  const [reconnecting, setReconnecting] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -236,13 +239,26 @@ function AgentStatusIndicator() {
     return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`
   }
 
+  const handleReconnect = async () => {
+    setReconnecting(true)
+    await testConnection()
+    setReconnecting(false)
+  }
+
+  // Determine dot color: green = connected, amber = configured but unreachable, gray = not configured
+  const dotColor = isConnected
+    ? 'bg-green-500'
+    : agentToken && consecutiveFailures > 0
+      ? 'bg-amber-400'
+      : 'bg-vsc-border'
+
   return (
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
         className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs text-vsc-muted hover:text-vsc-text hover:bg-vsc-hover transition-colors"
       >
-        <span className={`w-2 h-2 rounded-full transition-colors shrink-0 ${isConnected ? 'bg-green-500' : 'bg-vsc-border'}`} />
+        <span className={`w-2 h-2 rounded-full transition-colors shrink-0 ${dotColor}`} />
         <span className="hidden sm:inline">Agent</span>
       </button>
 
@@ -273,7 +289,7 @@ function AgentStatusIndicator() {
                 )}
                 {projectDir && (
                   <div className="flex justify-between gap-3">
-                    <span className="text-vsc-dim shrink-0">Project</span>
+                    <span className="text-vsc-dim shrink-0">Directory</span>
                     <span className="text-vsc-muted font-mono truncate text-right" title={projectDir}>
                       {projectDir.split('/').slice(-2).join('/')}
                     </span>
@@ -288,11 +304,37 @@ function AgentStatusIndicator() {
                 Disconnect
               </button>
             </div>
-          ) : (
+          ) : agentToken && consecutiveFailures > 0 ? (
+            /* Agent configured but unreachable */
+            <div className="p-3 flex flex-col gap-3">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
+                <span className="text-xs text-amber-400">Agent not reachable</span>
+              </div>
+              <p className="text-[10px] text-vsc-dim">Is the agent running at {host}?</p>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => { handleReconnect(); }}
+                  disabled={reconnecting}
+                  className="text-xs text-vsc-accent hover:text-white transition-colors flex items-center gap-1.5"
+                >
+                  {reconnecting ? 'Reconnecting…' : 'Reconnect'}
+                </button>
+                <span className="text-vsc-dim">·</span>
+                <button
+                  onClick={() => { setShowSetupWizard(true); setOpen(false) }}
+                  className="text-xs text-vsc-dim hover:text-vsc-accent transition-colors"
+                >
+                  Setup Agent
+                </button>
+              </div>
+            </div>
+          ) : activeProjectId ? (
+            /* Project selected but no agent configured */
             <div className="p-3 flex flex-col gap-3">
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-vsc-border shrink-0" />
-                <span className="text-xs text-vsc-muted">Agent not running</span>
+                <span className="text-xs text-vsc-muted">No agent configured</span>
               </div>
               <button
                 onClick={() => { setShowSetupWizard(true); setOpen(false) }}
@@ -302,8 +344,24 @@ function AgentStatusIndicator() {
                   <path d="M2 2h8v8H2V2z" stroke="currentColor" strokeWidth="1.2"/>
                   <path d="M5 4.5l3 1.5-3 1.5v-3z" fill="currentColor"/>
                 </svg>
-                Setup Guide
+                Setup Agent
               </button>
+              {activeProjectId && (
+                <button
+                  onClick={() => { navigate({ type: 'project-settings', projectId: activeProjectId }); setOpen(false) }}
+                  className="text-[10px] text-vsc-dim hover:text-vsc-muted transition-colors text-left"
+                >
+                  Configure in Settings
+                </button>
+              )}
+            </div>
+          ) : (
+            /* No project selected */
+            <div className="p-3">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-vsc-border shrink-0" />
+                <span className="text-xs text-vsc-dim">Select a project first</span>
+              </div>
             </div>
           )}
         </div>
@@ -571,6 +629,9 @@ export function TopBar() {
           </div>
         )}
 
+        {project?.localDirectory && activeProjectId && (
+          <SyncStatusIndicator projectId={activeProjectId} />
+        )}
         <AgentStatusIndicator />
         <ThemeToggle />
         <UserMenu />

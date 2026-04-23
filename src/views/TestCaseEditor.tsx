@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useApp } from '../store/AppContext'
 import { useToast } from '../components/common/Toast'
 import { usePermissions } from '../hooks/usePermissions'
+import { useAgent } from '../store/AgentContext'
 import { Btn } from '../components/common/Btn'
 import { Modal } from '../components/common/Modal'
 import { CodeBlock } from '../components/CodeBlock'
@@ -179,6 +180,7 @@ export function TestCaseEditor({ projectId, featureId, testCaseId }: Props) {
   const { state, dispatch, navigate } = useApp()
   const { toast } = useToast()
   const { isReadOnly } = usePermissions()
+  const { isConnected, runCommand, client } = useAgent()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
   const [showRun, setShowRun] = useState(false)
@@ -361,6 +363,27 @@ export function TestCaseEditor({ projectId, featureId, testCaseId }: Props) {
 
         {/* Header actions */}
         <div className="flex gap-2.5 pt-7 items-center shrink-0">
+          {/* Run this test case */}
+          {isConnected && project?.localDirectory && (
+            <button
+              onClick={async () => {
+                if (!client || !feature || !project) return
+                const s = (n: string) => n.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+                const ext = project.language === 'typescript' ? 'ts' : 'js'
+                const cmd = `npx playwright test tests/${s(feature.name)}/${s(tc.name)}.spec.${ext}`
+                runCommand(cmd, project.id)
+                toast('Running test…')
+              }}
+              title="Run this test case"
+              className="inline-flex items-center gap-1.5 border border-vsc-accent/40 bg-vsc-accent/10 hover:bg-vsc-accent/20 text-vsc-accent transition-all duration-150 rounded-md px-3 py-1.5 text-sm font-medium"
+            >
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none" className="shrink-0">
+                <path d="M2 1l7 4-7 4V1z" fill="currentColor" fillOpacity="0.8"/>
+              </svg>
+              Run
+            </button>
+          )}
+
           {/* Version history button */}
           <button
             onClick={() => setShowHistory(true)}

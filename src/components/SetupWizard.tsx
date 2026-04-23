@@ -1,7 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useAgent } from '../store/AgentContext'
-import { useAuth } from './auth/AuthProvider'
-import { setPreference } from '../lib/database/preferences'
 import { Btn } from './common/Btn'
 
 type Step = 1 | 2 | 3 | 4 | 5
@@ -73,7 +71,6 @@ function Spinner() {
 }
 
 export function SetupWizard({ onClose }: { onClose: () => void }) {
-  const { user } = useAuth()
   const {
     isConnected, agentUrl, agentToken, setAgentToken, connect, saveSettings,
     detectedProtocol, setShowSetupWizard,
@@ -86,7 +83,6 @@ export function SetupWizard({ onClose }: { onClose: () => void }) {
   const [verifyResult, setVerifyResult] = useState<{ ok: boolean; error?: string } | null>(null)
   const [polling, setPolling] = useState(false)
   const [detected, setDetected] = useState(false)
-  const [dontShowAgain, setDontShowAgain] = useState(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const autoAdvanceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -110,7 +106,6 @@ export function SetupWizard({ onClose }: { onClose: () => void }) {
     setDetected(false)
 
     pollRef.current = setInterval(async () => {
-      // Try connecting without token first (just health check reachability)
       const token = tokenInput || agentToken
       if (!token) return
       const result = await connect(token)
@@ -118,9 +113,7 @@ export function SetupWizard({ onClose }: { onClose: () => void }) {
         setDetected(true)
         setPolling(false)
         if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
-        // Auto-advance after 1.5s
         autoAdvanceRef.current = setTimeout(() => {
-          // Skip cert step if HTTP works or we're on localhost dev
           const needsCert = window.location.protocol === 'https:' && detectedProtocol === 'http'
           setStep(needsCert ? 3 : 4)
         }, 1500)
@@ -149,17 +142,15 @@ export function SetupWizard({ onClose }: { onClose: () => void }) {
   }
 
   const handleDone = async () => {
-    if (dontShowAgain && user) {
-      await setPreference(user.id, 'agent_setup_dismissed', '1').catch(() => {})
-    }
+    // Save agent settings to project (marks setup complete)
+    await saveSettings()
     setShowSetupWizard(false)
     onClose()
   }
 
   const handleSkip = async () => {
-    if (user) {
-      await setPreference(user.id, 'agent_setup_dismissed', '1').catch(() => {})
-    }
+    // Mark setup complete on project so wizard doesn't re-appear
+    await saveSettings()
     setShowSetupWizard(false)
     onClose()
   }
@@ -238,7 +229,6 @@ export function SetupWizard({ onClose }: { onClose: () => void }) {
               </div>
               <CopyBlock text="autoscriptor-agent start" />
 
-              {/* Token input for polling */}
               {!agentToken && (
                 <div className="flex flex-col gap-2">
                   <label className="text-xs text-vsc-muted">
@@ -254,7 +244,6 @@ export function SetupWizard({ onClose }: { onClose: () => void }) {
                 </div>
               )}
 
-              {/* Polling status */}
               <div className="flex items-center justify-center gap-2 py-2">
                 {detected ? (
                   <>
@@ -409,15 +398,6 @@ export function SetupWizard({ onClose }: { onClose: () => void }) {
                   You can now run tests directly from the app.
                 </p>
               </div>
-              <label className="flex items-center gap-2 cursor-pointer text-xs text-vsc-muted mt-2">
-                <input
-                  type="checkbox"
-                  checked={dontShowAgain}
-                  onChange={(e) => setDontShowAgain(e.target.checked)}
-                  className="w-3.5 h-3.5 accent-vsc-accent"
-                />
-                Don't show this again
-              </label>
             </div>
           )}
         </div>

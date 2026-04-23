@@ -35,7 +35,7 @@ export function ProjectDashboard({ projectId }: Props) {
   const { state, dispatch, navigate } = useApp()
   const { toast } = useToast()
   const { isReadOnly } = usePermissions()
-  const { isConnected } = useAgent()
+  const { isConnected, client } = useAgent()
   const [bannerDismissed, setBannerDismissed] = useState(() => {
     try { return localStorage.getItem(BANNER_DISMISSED_KEY) === '1' } catch { return false }
   })
@@ -45,7 +45,7 @@ export function ProjectDashboard({ projectId }: Props) {
   const [showCicd, setShowCicd] = useState(false)
   const [showMatrix, setShowMatrix] = useState(false)
   const [showTestPlan, setShowTestPlan] = useState(false)
-  const [activeTab, setActiveTab] = useState<'overview' | 'coverage' | 'dependencies' | 'history'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'coverage' | 'dependencies' | 'history' | 'results'>('overview')
 
   const project = state.projects.find((p) => p.id === projectId)
   const features = state.features.filter((f) => f.projectId === projectId)
@@ -125,6 +125,33 @@ export function ProjectDashboard({ projectId }: Props) {
           </svg>
           Run
         </Btn>
+        {isConnected && project.localDirectory && client && (
+          <>
+            <div className="w-px h-5 bg-vsc-border/40" />
+            <Btn variant="ghost" onClick={() => client.openInIDE('vscode')}>
+              <svg width="10" height="10" viewBox="0 0 16 16" fill="none" className="shrink-0">
+                <path d="M11.5 1L5 7l6.5 6 2.5-1.5v-9L11.5 1z" fill="currentColor" fillOpacity="0.6"/>
+                <path d="M5 7L1.5 4 3 2.5 11.5 7 3 11.5 1.5 10 5 7z" fill="currentColor" fillOpacity="0.4"/>
+              </svg>
+              VS Code
+            </Btn>
+            <Btn variant="ghost" onClick={() => client.openInIDE('cursor')}>
+              <svg width="10" height="10" viewBox="0 0 16 16" fill="none" className="shrink-0">
+                <rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" strokeWidth="1.4"/>
+                <path d="M5 8h6M8 5v6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+              </svg>
+              Cursor
+            </Btn>
+            <Btn variant="ghost" onClick={() => client.openInIDE('terminal')}>
+              <svg width="10" height="10" viewBox="0 0 16 16" fill="none" className="shrink-0">
+                <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.3"/>
+                <path d="M4 7l2.5 2L4 11" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M8.5 11H12" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+              </svg>
+              Terminal
+            </Btn>
+          </>
+        )}
         <div className="flex-1" />
         {!isReadOnly && (
           <Btn variant="primary" onClick={() => setCreating(true)}>
@@ -158,6 +185,7 @@ export function ProjectDashboard({ projectId }: Props) {
           { id: 'coverage', label: 'Coverage Map' },
           { id: 'dependencies', label: 'Dependencies' },
           { id: 'history', label: 'History' },
+          { id: 'results', label: 'Results' },
         ] as const).map((tab) => (
           <button
             key={tab.id}
@@ -279,6 +307,15 @@ export function ProjectDashboard({ projectId }: Props) {
 
       {activeTab === 'history' && (
         <ProjectHistoryTab projectId={projectId} projectName={project.name} />
+      )}
+
+      {activeTab === 'results' && (
+        <div className="flex flex-col items-center gap-4 py-8">
+          <p className="text-sm text-vsc-muted">View detailed test results and run history.</p>
+          <Btn variant="primary" onClick={() => navigate({ type: 'test-results', projectId })}>
+            View Full Results
+          </Btn>
+        </div>
       )}
 
       {showRunPanel && (

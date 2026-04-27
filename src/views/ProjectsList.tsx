@@ -2,9 +2,11 @@ import { useState } from 'react'
 import { Trash2 } from 'lucide-react'
 import { useApp } from '../store/AppContext'
 import { useToast } from '../components/common/Toast'
+import { usePermissions as _usePermissions } from '../hooks/usePermissions'
 import { Modal } from '../components/common/Modal'
 import { Btn } from '../components/common/Btn'
 import { Field, Input, Select } from '../components/common/Field'
+import { CreateProjectDirectoryStep } from '../components/project/CreateProjectDirectoryStep'
 import type { Project } from '../types'
 
 function newProject(name: string): Project {
@@ -64,19 +66,35 @@ const LANG_BADGE: Record<string, { label: string; className: string }> = {
 export function ProjectsList() {
   const { state, dispatch, navigate } = useApp()
   const { toast } = useToast()
+  const { isReadOnly } = _usePermissions()
   const [creating, setCreating] = useState(false)
+  const [createStep, setCreateStep] = useState<1 | 2>(1)
   const [name, setName] = useState('')
   const [lang, setLang] = useState<'typescript' | 'javascript'>('typescript')
+  const [dirPath, setDirPath] = useState('')
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
 
-  const handleCreate = () => {
+  const handleCreate = (skipDir = false) => {
     if (!name.trim()) return
-    const p = { ...newProject(name.trim()), language: lang }
+    const p = {
+      ...newProject(name.trim()),
+      language: lang,
+      ...(dirPath.trim() && !skipDir ? { localDirectory: dirPath.trim() } : {}),
+    }
     dispatch({ type: 'CREATE_PROJECT', project: p })
     toast(`Project "${p.name}" created`)
     navigate({ type: 'project-dashboard', projectId: p.id })
     setCreating(false)
+    setCreateStep(1)
     setName('')
+    setDirPath('')
+  }
+
+  const handleCloseCreate = () => {
+    setCreating(false)
+    setCreateStep(1)
+    setName('')
+    setDirPath('')
   }
 
   const confirmDelete = (id: string) => setDeleteTarget(id)
@@ -101,12 +119,14 @@ export function ProjectsList() {
             Manage your Playwright test suites
           </p>
         </div>
-        <Btn variant="primary" size="md" onClick={() => setCreating(true)}>
-          <svg width="13" height="13" viewBox="0 0 13 13" fill="none" className="shrink-0">
-            <path d="M6.5 1v11M1 6.5h11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-          </svg>
-          New project
-        </Btn>
+        {!isReadOnly && (
+          <Btn variant="primary" size="md" onClick={() => setCreating(true)}>
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none" className="shrink-0">
+              <path d="M6.5 1v11M1 6.5h11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
+            New project
+          </Btn>
+        )}
       </div>
 
       {state.projects.length === 0 ? (
@@ -115,10 +135,12 @@ export function ProjectsList() {
             <span className="text-vsc-accent text-sm font-bold">PW</span>
           </div>
           <p className="text-vsc-muted text-sm font-medium">No projects yet</p>
-          <p className="text-vsc-dim text-xs mt-1">Create one to get started</p>
-          <Btn variant="primary" size="md" className="mt-6" onClick={() => setCreating(true)}>
-            Create your first project
-          </Btn>
+          <p className="text-vsc-dim text-xs mt-1">{isReadOnly ? 'No projects have been created yet' : 'Create one to get started'}</p>
+          {!isReadOnly && (
+            <Btn variant="primary" size="md" className="mt-6" onClick={() => setCreating(true)}>
+              Create your first project
+            </Btn>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -199,32 +221,48 @@ export function ProjectsList() {
 
       {creating && (
         <Modal
-          title="New project"
-          onClose={() => setCreating(false)}
+          title={createStep === 1 ? 'New project' : 'Project directory'}
+          onClose={handleCloseCreate}
           footer={
-            <>
-              <Btn variant="ghost" onClick={() => setCreating(false)}>Cancel</Btn>
-              <Btn variant="primary" onClick={handleCreate} disabled={!name.trim()}>Create</Btn>
-            </>
+            createStep === 1 ? (
+              <>
+                <Btn variant="ghost" onClick={handleCloseCreate}>Cancel</Btn>
+                <Btn variant="primary" onClick={() => setCreateStep(2)} disabled={!name.trim()}>Next</Btn>
+              </>
+            ) : (
+              <>
+                <Btn variant="ghost" onClick={() => setCreateStep(1)}>Back</Btn>
+                <Btn variant="primary" onClick={() => handleCreate()}>Create</Btn>
+              </>
+            )
           }
         >
-          <div className="flex flex-col gap-5">
-            <Field label="Project name">
-              <Input
-                autoFocus
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="My app tests"
-                onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
-              />
-            </Field>
-            <Field label="Language">
-              <Select value={lang} onChange={(e) => setLang(e.target.value as 'typescript' | 'javascript')}>
-                <option value="typescript">TypeScript</option>
-                <option value="javascript">JavaScript</option>
-              </Select>
-            </Field>
-          </div>
+          {createStep === 1 ? (
+            <div className="flex flex-col gap-5">
+              <Field label="Project name">
+                <Input
+                  autoFocus
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="My app tests"
+                  onKeyDown={(e) => e.key === 'Enter' && name.trim() && setCreateStep(2)}
+                />
+              </Field>
+              <Field label="Language">
+                <Select value={lang} onChange={(e) => setLang(e.target.value as 'typescript' | 'javascript')}>
+                  <option value="typescript">TypeScript</option>
+                  <option value="javascript">JavaScript</option>
+                </Select>
+              </Field>
+            </div>
+          ) : (
+            <CreateProjectDirectoryStep
+              projectName={name.trim()}
+              value={dirPath}
+              onChange={setDirPath}
+              onSkip={() => handleCreate(true)}
+            />
+          )}
         </Modal>
       )}
 

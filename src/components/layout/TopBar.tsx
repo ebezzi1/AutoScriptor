@@ -1,12 +1,16 @@
 import { useState, useRef, useEffect } from 'react'
 import { useApp } from '../../store/AppContext'
+import { useAuth } from '../auth/AuthProvider'
+import { usePermissions } from '../../hooks/usePermissions'
 import { useToast } from '../common/Toast'
 import { useTheme, type Theme } from '../../store/ThemeContext'
+import { useAgent } from '../../store/AgentContext'
 import { Btn } from '../common/Btn'
 import { generateAndDownload } from '../../lib/zipBuilder'
 import { getEnvColor } from '../../types'
 import { MatrixPreviewModal } from '../MatrixPreviewModal'
 import { TestPlanModal } from '../TestPlanModal'
+import { SyncStatusIndicator } from '../sync/SyncStatusIndicator'
 
 function ThemeToggle() {
   const { theme, setTheme } = useTheme()
@@ -87,8 +91,288 @@ function ThemeToggle() {
   )
 }
 
+function UserMenu() {
+  const { user, teamName, signOut } = useAuth()
+  const { navigate } = useApp()
+  const { toast } = useToast()
+  const [open, setOpen] = useState(false)
+  const [editingName, setEditingName] = useState(false)
+  const [nameInput, setNameInput] = useState('')
+  const [savingName, setSavingName] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return undefined
+    const handle = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handle)
+    return () => document.removeEventListener('mousedown', handle)
+  }, [open])
+
+  const initial = user?.email?.[0]?.toUpperCase() ?? '?'
+
+  async function handleSaveName(e: React.FormEvent) {
+    e.preventDefault()
+    if (!user || nameInput.trim().length < 2) return
+    setSavingName(true)
+    try {
+      const { updateDisplayName } = await import('../../lib/database/teamManagement')
+      await updateDisplayName(user.id, nameInput.trim())
+      toast('Display name updated')
+      setEditingName(false)
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Failed to update name', 'error')
+    } finally {
+      setSavingName(false)
+    }
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-7 h-7 rounded-full bg-vsc-accent/20 border border-vsc-accent/30 flex items-center justify-center text-xs font-bold text-vsc-accent hover:bg-vsc-accent/30 transition-colors"
+        title={user?.email}
+      >
+        {initial}
+      </button>
+      {open && (
+        <div className="absolute top-full right-0 mt-1.5 z-50 bg-vsc-panel border border-vsc-border rounded-lg shadow-xl py-1 min-w-[200px] animate-popover-in">
+          <div className="px-3 py-2 border-b border-vsc-border/60">
+            {editingName ? (
+              <form onSubmit={handleSaveName} className="flex gap-1.5 mt-0.5">
+                <input
+                  autoFocus
+                  type="text"
+                  minLength={2}
+                  required
+                  value={nameInput}
+                  onChange={(e) => setNameInput(e.target.value)}
+                  placeholder="Your name"
+                  className="flex-1 min-w-0 px-2 py-1 text-xs rounded bg-vsc-bg border border-vsc-accent/40 text-vsc-text focus:outline-none focus:border-vsc-accent"
+                />
+                <button
+                  type="submit"
+                  disabled={savingName || nameInput.trim().length < 2}
+                  className="px-2 py-1 text-xs rounded bg-vsc-accent text-white disabled:opacity-50"
+                >
+                  {savingName ? '…' : 'Save'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditingName(false)}
+                  className="px-2 py-1 text-xs rounded text-vsc-dim hover:text-vsc-muted hover:bg-vsc-hover"
+                >
+                  ✕
+                </button>
+              </form>
+            ) : (
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-vsc-text truncate">{user?.email}</p>
+                  {teamName && <p className="text-[10px] text-vsc-dim truncate mt-0.5">{teamName}</p>}
+                </div>
+                <button
+                  onClick={() => { setNameInput(''); setEditingName(true) }}
+                  title="Edit display name"
+                  className="shrink-0 text-vsc-dim hover:text-vsc-muted transition-colors"
+                >
+                  <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                    <path d="M8.5 1.5l2 2L3 11H1V9L8.5 1.5z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round"/>
+                  </svg>
+                </button>
+              </div>
+            )}
+          </div>
+          <button
+            className="w-full text-left px-3 py-2 text-xs text-vsc-muted hover:text-vsc-text hover:bg-vsc-hover transition-colors flex items-center gap-2"
+            onClick={() => { navigate({ type: 'team-settings' }); setOpen(false) }}
+          >
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none" className="shrink-0">
+              <circle cx="5" cy="4" r="2" stroke="currentColor" strokeWidth="1.4"/>
+              <path d="M1 11c0-2.2 1.8-4 4-4s4 1.8 4 4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+              <circle cx="10" cy="4" r="1.5" stroke="currentColor" strokeWidth="1.3"/>
+              <path d="M10 8.5c1.4.3 2.5 1.5 2.5 3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+            </svg>
+            Team Settings
+          </button>
+          <div className="h-px bg-vsc-border/60 my-1" />
+          <button
+            className="w-full text-left px-3 py-2 text-xs text-vsc-danger hover:bg-vsc-danger-light transition-colors flex items-center gap-2"
+            onClick={() => { signOut(); setOpen(false) }}
+          >
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none" className="shrink-0">
+              <path d="M5 2H2a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+              <path d="M8.5 9l3-2.5L8.5 4M11.5 6.5H5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            Sign Out
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function AgentStatusIndicator() {
+  const { isConnected, agentUrl, agentToken, agentVersion, agentUptime, projectDir, disconnect, setShowSetupWizard, activeProjectId, consecutiveFailures, testConnection } = useAgent()
+  const { navigate } = useApp()
+  const [open, setOpen] = useState(false)
+  const [reconnecting, setReconnecting] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return undefined
+    const handle = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handle)
+    return () => document.removeEventListener('mousedown', handle)
+  }, [open])
+
+  const host = (() => { try { return new URL(agentUrl).host } catch { return agentUrl } })()
+
+  const formatUptime = (ms: number) => {
+    const s = Math.floor(ms / 1000)
+    if (s < 60) return `${s}s`
+    if (s < 3600) return `${Math.floor(s / 60)}m ${s % 60}s`
+    return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`
+  }
+
+  const handleReconnect = async () => {
+    setReconnecting(true)
+    await testConnection()
+    setReconnecting(false)
+  }
+
+  // Determine dot color: green = connected, amber = configured but unreachable, gray = not configured
+  const dotColor = isConnected
+    ? 'bg-green-500'
+    : agentToken && consecutiveFailures > 0
+      ? 'bg-amber-400'
+      : 'bg-vsc-border'
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs text-vsc-muted hover:text-vsc-text hover:bg-vsc-hover transition-colors"
+      >
+        <span className={`w-2 h-2 rounded-full transition-colors shrink-0 ${dotColor}`} />
+        <span className="hidden sm:inline">Agent</span>
+      </button>
+
+      {open && (
+        <div className="absolute top-full right-0 mt-1.5 z-50 bg-vsc-panel border border-vsc-border rounded-lg shadow-xl min-w-[220px] animate-popover-in">
+          {isConnected ? (
+            <div className="p-3 flex flex-col gap-2.5">
+              <div className="flex items-center gap-2 mb-0.5">
+                <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
+                <span className="text-xs font-medium text-green-400">Connected</span>
+              </div>
+              <div className="flex flex-col gap-1.5 text-[10px]">
+                <div className="flex justify-between">
+                  <span className="text-vsc-dim">URL</span>
+                  <span className="text-vsc-muted font-mono">{host}</span>
+                </div>
+                {agentVersion && (
+                  <div className="flex justify-between">
+                    <span className="text-vsc-dim">Version</span>
+                    <span className="text-vsc-muted">v{agentVersion}</span>
+                  </div>
+                )}
+                {agentUptime != null && (
+                  <div className="flex justify-between">
+                    <span className="text-vsc-dim">Uptime</span>
+                    <span className="text-vsc-muted">{formatUptime(agentUptime)}</span>
+                  </div>
+                )}
+                {projectDir && (
+                  <div className="flex justify-between gap-3">
+                    <span className="text-vsc-dim shrink-0">Directory</span>
+                    <span className="text-vsc-muted font-mono truncate text-right" title={projectDir}>
+                      {projectDir.split('/').slice(-2).join('/')}
+                    </span>
+                  </div>
+                )}
+              </div>
+              <div className="h-px bg-vsc-border/50 mt-1" />
+              <button
+                onClick={() => { disconnect(); setOpen(false) }}
+                className="text-[10px] text-vsc-dim hover:text-red-400 transition-colors text-left"
+              >
+                Disconnect
+              </button>
+            </div>
+          ) : agentToken && consecutiveFailures > 0 ? (
+            /* Agent configured but unreachable */
+            <div className="p-3 flex flex-col gap-3">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
+                <span className="text-xs text-amber-400">Agent not reachable</span>
+              </div>
+              <p className="text-[10px] text-vsc-dim">Is the agent running at {host}?</p>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => { handleReconnect(); }}
+                  disabled={reconnecting}
+                  className="text-xs text-vsc-accent hover:text-white transition-colors flex items-center gap-1.5"
+                >
+                  {reconnecting ? 'Reconnecting…' : 'Reconnect'}
+                </button>
+                <span className="text-vsc-dim">·</span>
+                <button
+                  onClick={() => { setShowSetupWizard(true); setOpen(false) }}
+                  className="text-xs text-vsc-dim hover:text-vsc-accent transition-colors"
+                >
+                  Setup Agent
+                </button>
+              </div>
+            </div>
+          ) : activeProjectId ? (
+            /* Project selected but no agent configured */
+            <div className="p-3 flex flex-col gap-3">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-vsc-border shrink-0" />
+                <span className="text-xs text-vsc-muted">No agent configured</span>
+              </div>
+              <button
+                onClick={() => { setShowSetupWizard(true); setOpen(false) }}
+                className="text-xs text-vsc-accent hover:text-vsc-accent-hover transition-colors text-left flex items-center gap-1.5"
+              >
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                  <path d="M2 2h8v8H2V2z" stroke="currentColor" strokeWidth="1.2"/>
+                  <path d="M5 4.5l3 1.5-3 1.5v-3z" fill="currentColor"/>
+                </svg>
+                Setup Agent
+              </button>
+              {activeProjectId && (
+                <button
+                  onClick={() => { navigate({ type: 'project-settings', projectId: activeProjectId }); setOpen(false) }}
+                  className="text-[10px] text-vsc-dim hover:text-vsc-muted transition-colors text-left"
+                >
+                  Configure in Settings
+                </button>
+              )}
+            </div>
+          ) : (
+            /* No project selected */
+            <div className="p-3">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-vsc-border shrink-0" />
+                <span className="text-xs text-vsc-dim">Select a project first</span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function TopBar() {
   const { state, dispatch, navigate } = useApp()
+  const { isReadOnly } = usePermissions()
   const { toast } = useToast()
   const { currentView } = state
   const [generating, setGenerating] = useState(false)
@@ -109,7 +393,9 @@ export function TopBar() {
   }, [exportMenuOpen])
 
   const activeProjectId =
-    currentView.type !== 'projects' ? currentView.projectId : null
+    (currentView.type !== 'projects' && currentView.type !== 'team-settings')
+      ? (currentView as { projectId: string }).projectId
+      : null
   const project = activeProjectId
     ? state.projects.find((p) => p.id === activeProjectId)
     : null
@@ -231,6 +517,11 @@ export function TopBar() {
             </span>
           ))
         )}
+        {isReadOnly && (
+          <span className="text-[10px] font-semibold text-vsc-muted border border-vsc-border rounded-full px-2 py-0.5 ml-2 shrink-0">
+            View only
+          </span>
+        )}
       </div>
 
       {/* Right-side controls */}
@@ -338,7 +629,12 @@ export function TopBar() {
           </div>
         )}
 
+        {project?.localDirectory && activeProjectId && (
+          <SyncStatusIndicator projectId={activeProjectId} />
+        )}
+        <AgentStatusIndicator />
         <ThemeToggle />
+        <UserMenu />
       </div>
     </header>
 

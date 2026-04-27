@@ -94,6 +94,10 @@ export interface Project {
   activeEnvironmentId?: string | null
   auth?: AuthConfig
   cicd?: CiCdConfig
+  localDirectory?: string
+  agentUrl?: string
+  agentToken?: string
+  agentSetupComplete?: boolean
 }
 
 export type SelectorStrategy = 'css' | 'xpath' | 'data-testid' | 'role' | 'text' | 'label'
@@ -197,6 +201,47 @@ export interface TestCase {
   dependencies?: string[]
   /** When true, excluded from code generation, matrix export, and coverage counts */
   disabled?: boolean
+  /** Origin of this test case */
+  source?: 'manual' | 'ai_generated' | 'imported'
+  /** Optional context/prompt used to generate this test case */
+  sourceText?: string
+}
+
+// ── Test run results ────────────────────────────────────────────────────────
+
+export type TestRunStatus = 'running' | 'passed' | 'failed' | 'cancelled'
+
+export interface TestRun {
+  id: string
+  projectId: string
+  command: string
+  environment?: string
+  status: TestRunStatus
+  total: number
+  passed: number
+  failed: number
+  skipped: number
+  duration: number
+  createdAt: string
+  finishedAt?: string
+  userId?: string
+  userName?: string
+}
+
+export type TestResultStatus = 'passed' | 'failed' | 'skipped' | 'timedOut'
+
+export interface TestRunResult {
+  id: string
+  testRunId: string
+  testName: string
+  filePath: string
+  featureName: string
+  status: TestResultStatus
+  duration: number
+  error?: string
+  errorStack?: string
+  screenshotPath?: string
+  testCaseId?: string
 }
 
 // Navigation state
@@ -207,6 +252,8 @@ export type AppView =
   | { type: 'feature'; projectId: string; featureId: string }
   | { type: 'test-case'; projectId: string; featureId: string; testCaseId: string }
   | { type: 'utils'; projectId: string }
+  | { type: 'test-results'; projectId: string; runId?: string }
+  | { type: 'team-settings' }
 
 export interface AppState {
   projects: Project[]

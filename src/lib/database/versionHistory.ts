@@ -1,0 +1,254 @@
+import { supabase } from '../supabase'
+import type { TestCase, AppAction, AppState, Feature, GlobalVariable, ReusableUtil, Fixture } from '../../types'
+import { createFeature } from './features'
+import { createTestCase } from './testCases'
+import { createVariable } from './variables'
+import { createUtil } from './utils'
+import { createFixture } from './fixtures'
+import { updateProject } from './projects'
+
+export type SnapshotEntityType = 'test_case' | 'project' | 'feature'
+
+export interface VersionSnapshot {
+  id: string
+  projectId: string
+  entityType: SnapshotEntityType
+  entityId: string
+  createdBy: string | null
+  snapshotType: 'auto' | 'manual' | 'generation'
+  label: string
+  changeDescription: string | null
+  data: Record<string, unknown>
+  isPinned: boolean
+  createdAt: string
+}
+
+function toVersionSnapshot(row: Record<string, unknown>): VersionSnapshot {
+  // jsonb columns come back as parsed objects from supabase-js, but guard
+  // against double-stringified payloads just in case
+  let data = row.data ?? {}
+  if (typeof data === 'string') {
+    try { data = JSON.parse(data) } catch { data = {} }
+  }
+
+  return {
+    id: row.id as string,
+    projectId: row.project_id as string,
+    entityType: row.entity_type as SnapshotEntityType,
+    entityId: row.entity_id as string,
+    createdBy: row.created_by as string | null,
+    snapshotType: row.snapshot_type as 'auto' | 'manual' | 'generation',
+    label: row.label as string,
+    changeDescription: row.change_description as string | null,
+    data: data as Record<string, unknown>,
+    isPinned: row.is_pinned as boolean,
+    createdAt: row.created_at as string,
+  }
+}
+
+export async function createVersionSnapshot(
+  projectId: string,
+  entityType: SnapshotEntityType,
+  entityId: string,
+  snapshotType: 'auto' | 'manual' | 'generation',
+  label: string,
+  data: Record<string, unknown>,
+  createdBy: string | null = null,
+  changeDescription: string | null = null,
+  isPinned = false
+): Promise<VersionSnapshot | null> {
+  const { data: row, error } = await supabase
+    .from('snapshots')
+    .insert({
+      project_id: projectId,
+      entity_type: entityType,
+      entity_id: entityId,
+      created_by: createdBy,
+      snapshot_type: snapshotType,
+      label,
+      change_description: changeDescription,
+      data,
+      is_pinned: isPinned,
+    })
+    .select()
+    .single()
+  if (error) {
+    console.error('[versionHistory] createVersionSnapshot error:', error)
+    return null
+  }
+  return toVersionSnapshot(row)
+}
+
+export async function getVersionSnapshots(
+  projectId: string,
+  entityType: SnapshotEntityType,
+  entityId: string,
+  limit = 50
+): Promise<VersionSnapshot[]> {
+  const { data, error } = await supabase
+    .from('snapshots')
+    .select('*')
+    .eq('project_id', projectId)
+    .eq('entity_type', entityType)
+    .eq('entity_id', entityId)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+
+  if (error) return []
+  return (data ?? []).map(toVersionSnapshot)
+}
+
+export async function deleteVersionSnapshot(id: string): Promise<void> {
+  await supabase.from('snapshots').delete().eq('id', id)
+}
+
+export async function pinVersionSnapshot(id: string, isPinned: boolean): Promise<void> {
+  await supabase.from('snapshots').update({ is_pinned: isPinned }).eq('id', id)
+}
+
+export async function pruneOldVersionSnapshots(
+  projectId: string,
+  entityType: SnapshotEntityType,
+  entityId: string,
+  limit: number
+): Promise<void> {
+  const { data } = await supabase
+    .from('snapshots')
+    .select('id')
+    .eq('project_id', projectId)
+    .eq('entity_type', entityType)
+    .eq('entity_id', entityId)
+    .eq('is_pinned', false)
+    .order('created_at', { ascending: false })
+    .range(limit, 9999)
+
+  if (!data || data.length === 0) return
+  const ids = data.map((r: Record<string, unknown>) => r.id as string)
+  await supabase.from('snapshots').delete().in('id', ids)
+}
+
+// ── Change label detection ────────────────────────────────────────────────────
+
+export function detectTcChangeLabel(prevTc: TestCase, nextTc: TestCase): string {
+  const prevSteps = (prevTc.steps?.length ?? 0) + (prevTc.apiSteps?.length ?? 0)
+  const nextSteps = (nextTc.steps?.length ?? 0) + (nextTc.apiSteps?.length ?? 0)
+  const stepDiff = nextSteps - prevSteps
+
+  if (prevTc.name !== nextTc.name) return `Renamed to "${nextTc.name}"`
+  if (prevTc.priority !== nextTc.priority) return `Changed priority to ${nextTc.priority}`
+  if (prevTc.type !== nextTc.type) return `Switched to ${(nextTc.type ?? 'ui').toUpperCase()} mode`
+  if (prevTc.disabled !== nextTc.disabled) return nextTc.disabled ? 'Disabled test case' : 'Enabled test case'
+  if (JSON.stringify(prevTc.tags) !== JSON.stringify(nextTc.tags)) return 'Updated tags'
+  if (JSON.stringify(prevTc.annotations) !== JSON.stringify(nextTc.annotations)) return 'Updated annotations'
+  if (prevTc.pageUrl !== nextTc.pageUrl) return 'Changed page URL'
+  if (prevTc.authRoleId !== nextTc.authRoleId) return 'Changed auth role'
+  if (JSON.stringify(prevTc.viewport) !== JSON.stringify(nextTc.viewport)) return 'Changed viewport'
+  if (prevTc.description !== nextTc.description) return 'Updated description'
+  if (prevTc.linkedFixture !== nextTc.linkedFixture) return 'Changed linked fixture'
+
+  if (stepDiff > 0) return `Added ${stepDiff} step${stepDiff !== 1 ? 's' : ''}`
+  if (stepDiff < 0) return `Removed ${Math.abs(stepDiff)} step${Math.abs(stepDiff) !== 1 ? 's' : ''}`
+  if (
+    JSON.stringify(prevTc.steps) !== JSON.stringify(nextTc.steps) ||
+    JSON.stringify(prevTc.apiSteps) !== JSON.stringify(nextTc.apiSteps)
+  ) return 'Edited steps'
+
+  return 'Updated test case'
+}
+
+export function detectProjectChangeLabel(action: AppAction): string {
+  switch (action.type) {
+    case 'UPDATE_PROJECT': return 'Updated project settings'
+    case 'CREATE_FEATURE': return `Added feature "${action.feature.name}"`
+    case 'UPDATE_FEATURE': return `Updated feature "${action.feature.name}"`
+    case 'DELETE_FEATURE': return 'Deleted a feature'
+    case 'CREATE_VAR': return `Added variable "${action.variable.key}"`
+    case 'UPDATE_VAR': return `Updated variable "${action.variable.key}"`
+    case 'DELETE_VAR': return 'Deleted a variable'
+    case 'CREATE_UTIL': return `Added util "${action.util.name}"`
+    case 'UPDATE_UTIL': return `Updated util "${action.util.name}"`
+    case 'DELETE_UTIL': return 'Deleted a util'
+    case 'CREATE_FIXTURE': return `Added fixture "${action.fixture.name}"`
+    case 'UPDATE_FIXTURE': return `Updated fixture "${action.fixture.name}"`
+    case 'DELETE_FIXTURE': return 'Deleted a fixture'
+    case 'BULK_DELETE_TC': return `Bulk deleted ${action.tcIds.length} test case${action.tcIds.length !== 1 ? 's' : ''}`
+    case 'BULK_MOVE_TC': return `Moved ${action.tcIds.length} test case${action.tcIds.length !== 1 ? 's' : ''}`
+    case 'BULK_COPY_TC':
+    case 'BULK_DUPLICATE_TC': return `Duplicated ${action.copies.length} test case${action.copies.length !== 1 ? 's' : ''}`
+    default: return 'Project updated'
+  }
+}
+
+export function getProjectIdFromAction(action: AppAction, prevState: AppState): string | null {
+  switch (action.type) {
+    case 'UPDATE_PROJECT': return action.project.id
+    case 'CREATE_FEATURE': return action.feature.projectId
+    case 'UPDATE_FEATURE': return action.feature.projectId
+    case 'DELETE_FEATURE': return prevState.features.find(f => f.id === action.featureId)?.projectId ?? null
+    case 'CREATE_VAR': return action.variable.projectId
+    case 'UPDATE_VAR': return action.variable.projectId
+    case 'DELETE_VAR': return prevState.variables.find(v => v.id === action.varId)?.projectId ?? null
+    case 'CREATE_UTIL': return action.util.projectId
+    case 'UPDATE_UTIL': return action.util.projectId
+    case 'DELETE_UTIL': return prevState.utils.find(u => u.id === action.utilId)?.projectId ?? null
+    case 'CREATE_FIXTURE': return action.fixture.projectId
+    case 'UPDATE_FIXTURE': return action.fixture.projectId
+    case 'DELETE_FIXTURE': return prevState.fixtures.find(fx => fx.id === action.fixtureId)?.projectId ?? null
+    case 'BULK_DELETE_TC': return prevState.testCases.find(tc => action.tcIds.includes(tc.id))?.projectId ?? null
+    case 'BULK_MOVE_TC': return prevState.testCases.find(tc => action.tcIds.includes(tc.id))?.projectId ?? null
+    case 'BULK_COPY_TC':
+    case 'BULK_DUPLICATE_TC': return action.copies[0]?.projectId ?? null
+    default: return null
+  }
+}
+
+export function getProjectSnapshot(projectId: string, state: AppState): Record<string, unknown> {
+  return {
+    project: state.projects.find(p => p.id === projectId),
+    features: state.features.filter(f => f.projectId === projectId),
+    testCases: state.testCases.filter(tc => tc.projectId === projectId),
+    variables: state.variables.filter(v => v.projectId === projectId),
+    utils: state.utils.filter(u => u.projectId === projectId),
+    fixtures: state.fixtures.filter(fx => fx.projectId === projectId),
+  } as Record<string, unknown>
+}
+
+// ── Project restore ───────────────────────────────────────────────────────────
+
+export async function restoreProjectSnapshot(
+  projectId: string,
+  snapshotData: Record<string, unknown>
+): Promise<void> {
+  const data = snapshotData as {
+    project: import('../../types').Project
+    features: Feature[]
+    testCases: TestCase[]
+    variables: GlobalVariable[]
+    utils: ReusableUtil[]
+    fixtures: Fixture[]
+  }
+
+  // Delete existing data (FK cascades to child tables)
+  await supabase.from('features').delete().eq('project_id', projectId)
+  await supabase.from('variables').delete().eq('project_id', projectId)
+  await supabase.from('utils').delete().eq('project_id', projectId)
+  await supabase.from('fixtures').delete().eq('project_id', projectId)
+
+  // Re-create features first (test_cases depend on them)
+  for (const f of (data.features ?? [])) {
+    await createFeature(f)
+  }
+
+  // Re-create everything else
+  await Promise.all([
+    ...(data.testCases ?? []).map(tc => createTestCase(tc)),
+    ...(data.variables ?? []).map(v => createVariable(v)),
+    ...(data.utils ?? []).map(u => createUtil(u)),
+    ...(data.fixtures ?? []).map(fx => createFixture(fx)),
+  ])
+
+  // Update project settings
+  if (data.project) {
+    await updateProject(data.project)
+  }
+}

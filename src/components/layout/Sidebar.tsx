@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useApp } from '../../store/AppContext'
+import { useAgent } from '../../store/AgentContext'
 import { Btn } from '../common/Btn'
 import { DuplicateToModal } from '../DuplicateToModal'
 import { BulkTcBar } from '../BulkTcBar'
@@ -36,12 +37,15 @@ function Checkbox({
 }
 
 export function Sidebar() {
-  const { state, navigate, dispatch } = useApp()
+  const { state, navigate, dispatch, modifiedTcIds } = useApp()
   const { currentView } = state
   const { toast } = useToast()
+  const { latestResults, runner, loadLatestResults } = useAgent()
 
   const activeProjectId =
-    currentView.type !== 'projects' ? currentView.projectId : null
+    (currentView.type !== 'projects' && currentView.type !== 'team-settings')
+      ? (currentView as { projectId: string }).projectId
+      : null
   const project = activeProjectId
     ? state.projects.find((p) => p.id === activeProjectId)
     : null
@@ -49,6 +53,41 @@ export function Sidebar() {
   const allProjectTCs = state.testCases.filter((tc) => tc.projectId === activeProjectId)
   const activeEnv = project?.environments?.find((e) => e.id === project?.activeEnvironmentId) ?? null
   const activeEnvHex = activeEnv ? getEnvColor(activeEnv) : null
+
+  // Load latest run results on mount and after runs complete
+  useEffect(() => {
+    if (activeProjectId) loadLatestResults(activeProjectId)
+  }, [activeProjectId, runner.isRunning]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Build TC ID → result status map from latest results
+  const tcResultMap = useMemo(() => {
+    const map = new Map<string, { status: string; duration: number; error?: string }>()
+    // From DB results (have testCaseId)
+    for (const r of latestResults.results) {
+      if (r.testCaseId) {
+        map.set(r.testCaseId, { status: r.status, duration: r.duration, error: r.error })
+      }
+    }
+    // From parsed results, try matching by name
+    if (latestResults.parsedResults) {
+      for (const t of latestResults.parsedResults.tests) {
+        // Try to match by test name to TC name
+        const slugify = (s: string) => s.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+        const featureSlug = t.file.match(/tests\/([^/]+)\//)?.[1] ?? ''
+        const feature = features.find((f) => slugify(f.name) === featureSlug)
+        if (!feature) continue
+        const featureTCs = allProjectTCs.filter((tc) => tc.featureId === feature.id)
+        const tc = featureTCs.find((tc) =>
+          t.name.toLowerCase().includes(tc.name.toLowerCase()) ||
+          tc.name.toLowerCase().includes(t.name.toLowerCase())
+        )
+        if (tc && !map.has(tc.id)) {
+          map.set(tc.id, { status: t.status, duration: t.duration, error: t.error })
+        }
+      }
+    }
+    return map
+  }, [latestResults, features, allProjectTCs])
 
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
@@ -259,6 +298,7 @@ export function Sidebar() {
 
       {/* Main nav */}
       {!project ? (
+        <>
         <div className="flex-1 overflow-y-auto p-3">
           <p className="text-2xs text-vsc-dim font-semibold uppercase tracking-widest mb-2 px-2 pt-1">
             Projects
@@ -269,7 +309,7 @@ export function Sidebar() {
             <div className="flex flex-col gap-1">
               {state.projects.map((p) => {
                 const isActive =
-                  currentView.type !== 'projects' && currentView.projectId === p.id
+                  currentView.type !== 'projects' && currentView.type !== 'team-settings' && (currentView as { projectId: string }).projectId === p.id
                 return (
                   <button
                     key={p.id}
@@ -287,6 +327,25 @@ export function Sidebar() {
             </div>
           )}
         </div>
+        <div className="border-t border-vsc-border p-2">
+          <button
+            className={`w-full text-left text-xs px-3 py-2 rounded-md transition-all flex items-center gap-2.5 font-medium ${
+              currentView.type === 'team-settings'
+                ? 'text-vsc-accent bg-vsc-accent-light'
+                : 'text-vsc-muted hover:text-vsc-text hover:bg-vsc-hover'
+            }`}
+            onClick={() => navigate({ type: 'team-settings' })}
+          >
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none" className="shrink-0">
+              <circle cx="5" cy="4" r="2" stroke="currentColor" strokeWidth="1.4"/>
+              <path d="M1 11c0-2.2 1.8-4 4-4s4 1.8 4 4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+              <circle cx="10" cy="4" r="1.5" stroke="currentColor" strokeWidth="1.3"/>
+              <path d="M10 8.5c1.4.3 2.5 1.5 2.5 3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+            </svg>
+            Manage Team
+          </button>
+        </div>
+        </>
       ) : (
         <div className="flex-1 overflow-y-auto">
           {/* Project info */}
@@ -470,6 +529,32 @@ export function Sidebar() {
                                 <span className="text-[9px] text-yellow-500/60 font-medium shrink-0 px-1">off</span>
                               )}
 
+                              {/* Test result dot */}
+                              {!tc.disabled && tcResultMap.has(tc.id) && (() => {
+                                const res = tcResultMap.get(tc.id)!
+                                const dotColor =
+                                  res.status === 'passed' ? 'bg-green-400' :
+                                  res.status === 'failed' || res.status === 'timedOut' ? 'bg-red-400' :
+                                  'bg-gray-500'
+                                const tipText =
+                                  res.status === 'passed' ? `Passed (${res.duration < 1000 ? res.duration + 'ms' : (res.duration / 1000).toFixed(1) + 's'})` :
+                                  res.status === 'failed' ? `Failed${res.error ? ': ' + res.error.slice(0, 80) : ''}` :
+                                  'Skipped'
+                                return (
+                                  <span
+                                    title={tipText}
+                                    className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotColor}`}
+                                  />
+                                )
+                              })()}
+
+                              {!tc.disabled && !tcResultMap.has(tc.id) && modifiedTcIds.has(tc.id) && (
+                                <span
+                                  title="Modified since last code generation"
+                                  className="w-1.5 h-1.5 rounded-full bg-vsc-accent shrink-0 opacity-70"
+                                />
+                              )}
+
                               {deps.length > 0 && !selectionMode && (
                                 <span
                                   title={`Depends on: ${depNames.join(', ')}`}
@@ -555,6 +640,22 @@ export function Sidebar() {
       {/* Bottom nav */}
       {project && (
         <div className="border-t border-vsc-border p-2 space-y-0.5">
+          <button
+            className={`w-full text-left text-xs px-3 py-2 rounded-md transition-all flex items-center gap-2.5 font-medium ${
+              currentView.type === 'team-settings'
+                ? 'text-vsc-accent bg-vsc-accent-light'
+                : 'text-vsc-muted hover:text-vsc-text hover:bg-vsc-hover'
+            }`}
+            onClick={() => navigate({ type: 'team-settings' })}
+          >
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none" className="shrink-0">
+              <circle cx="5" cy="4" r="2" stroke="currentColor" strokeWidth="1.4"/>
+              <path d="M1 11c0-2.2 1.8-4 4-4s4 1.8 4 4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+              <circle cx="10" cy="4" r="1.5" stroke="currentColor" strokeWidth="1.3"/>
+              <path d="M10 8.5c1.4.3 2.5 1.5 2.5 3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+            </svg>
+            Manage Team
+          </button>
           <button
             className={`w-full text-left text-xs px-3 py-2 rounded-md transition-all flex items-center gap-2.5 font-medium ${
               currentView.type === 'utils'

@@ -1,5 +1,73 @@
 import { supabase } from '../supabase'
 
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+export interface UserTeam {
+  teamId: string
+  teamName: string
+  role: string
+  memberCount: number
+}
+
+// ── Query all teams for a user ────────────────────────────────────────────────
+
+export async function getUserTeams(userId: string): Promise<UserTeam[]> {
+  // Get all memberships for this user
+  const { data: memberships, error: memberErr } = await supabase
+    .from('team_members')
+    .select('team_id, role')
+    .eq('user_id', userId)
+
+  if (memberErr) {
+    console.error('[getUserTeams] Failed to query team_members:', memberErr.message)
+    return []
+  }
+
+  if (!memberships || memberships.length === 0) return []
+
+  const teamIds = memberships.map((m: Record<string, unknown>) => m.team_id as string)
+
+  // Get team names
+  const { data: teams, error: teamErr } = await supabase
+    .from('teams')
+    .select('id, name')
+    .in('id', teamIds)
+
+  if (teamErr) {
+    console.error('[getUserTeams] Failed to query teams:', teamErr.message)
+    return []
+  }
+
+  // Get member counts per team
+  const { data: counts, error: countErr } = await supabase
+    .from('team_members')
+    .select('team_id')
+    .in('team_id', teamIds)
+
+  const countMap = new Map<string, number>()
+  if (!countErr && counts) {
+    for (const row of counts as Record<string, unknown>[]) {
+      const tid = row.team_id as string
+      countMap.set(tid, (countMap.get(tid) ?? 0) + 1)
+    }
+  }
+
+  const teamMap = new Map<string, string>()
+  for (const t of (teams ?? []) as Record<string, unknown>[]) {
+    teamMap.set(t.id as string, (t.name as string) ?? 'Unnamed')
+  }
+
+  return memberships.map((m: Record<string, unknown>) => {
+    const tid = m.team_id as string
+    return {
+      teamId: tid,
+      teamName: teamMap.get(tid) ?? 'Unnamed',
+      role: (m.role as string) ?? 'member',
+      memberCount: countMap.get(tid) ?? 1,
+    }
+  })
+}
+
 /**
  * Ensures the authenticated user belongs to a team.
  * If no membership exists, creates a team + adds the user as owner.

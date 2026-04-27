@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { useApp } from '../store/AppContext'
 import { useToast } from '../components/common/Toast'
+import { usePermissions } from '../hooks/usePermissions'
 import { Modal } from '../components/common/Modal'
 import { Btn } from '../components/common/Btn'
 import { Field, Input } from '../components/common/Field'
 import { ChipInput } from '../components/common/ChipInput'
 import { StepTable } from '../components/steps/StepTable'
+import { useAgent } from '../store/AgentContext'
 import { PRIORITY_COLORS } from '../types'
 import type { TestCase, Feature, Priority } from '../types'
 
@@ -33,11 +35,14 @@ interface Props { projectId: string; featureId: string }
 export function FeatureView({ projectId, featureId }: Props) {
   const { state, dispatch, navigate } = useApp()
   const { toast } = useToast()
+  const { isReadOnly } = usePermissions()
+  const { isConnected, runCommand } = useAgent()
   const [creatingTC, setCreatingTC] = useState(false)
   const [tcName, setTcName] = useState('')
   const [tcType, setTcType] = useState<'ui' | 'api'>('ui')
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
 
+  const project = state.projects.find((p) => p.id === projectId)
   const feature = state.features.find((f) => f.id === featureId)
   const testCases = state.testCases.filter((tc) => tc.featureId === featureId)
   const projectUtils = state.utils.filter((u) => u.projectId === projectId)
@@ -95,18 +100,37 @@ export function FeatureView({ projectId, featureId }: Props) {
             />
           </div>
         </div>
-        <div className="pt-8 shrink-0">
-          <Btn
-            variant="danger"
-            size="sm"
-            onClick={() => {
-              dispatch({ type: 'DELETE_FEATURE', featureId })
-              navigate({ type: 'project-dashboard', projectId })
-              toast('Feature deleted', 'error')
-            }}
-          >
-            Delete feature
-          </Btn>
+        <div className="pt-8 shrink-0 flex items-center gap-2.5">
+          {isConnected && project?.localDirectory && feature && (
+            <button
+              onClick={() => {
+                const s = (n: string) => n.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+                const cmd = `npx playwright test tests/${s(feature.name)}/`
+                runCommand(cmd, projectId)
+                toast('Running feature tests…')
+              }}
+              title="Run all tests in this feature"
+              className="inline-flex items-center gap-1.5 border border-vsc-accent/40 bg-vsc-accent/10 hover:bg-vsc-accent/20 text-vsc-accent transition-all duration-150 rounded-md px-3 py-1.5 text-xs font-medium"
+            >
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none" className="shrink-0">
+                <path d="M2 1l7 4-7 4V1z" fill="currentColor" fillOpacity="0.8"/>
+              </svg>
+              Run
+            </button>
+          )}
+          {!isReadOnly && (
+            <Btn
+              variant="danger"
+              size="sm"
+              onClick={() => {
+                dispatch({ type: 'DELETE_FEATURE', featureId })
+                navigate({ type: 'project-dashboard', projectId })
+                toast('Feature deleted', 'error')
+              }}
+            >
+              Delete feature
+            </Btn>
+          )}
         </div>
       </div>
 
@@ -161,12 +185,14 @@ export function FeatureView({ projectId, featureId }: Props) {
           <h2 className="text-xs font-semibold text-vsc-dim uppercase tracking-widest">Test cases</h2>
           <span className="text-xs text-vsc-accent font-bold tabular-nums">{testCases.length}</span>
           <div className="flex-1 h-px bg-vsc-border/60" />
-          <Btn variant="primary" size="sm" onClick={() => setCreatingTC(true)}>
-            <svg width="11" height="11" viewBox="0 0 11 11" fill="none" className="shrink-0">
-              <path d="M5.5 1v9M1 5.5h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-            </svg>
-            Add test case
-          </Btn>
+          {!isReadOnly && (
+            <Btn variant="primary" size="sm" onClick={() => setCreatingTC(true)}>
+              <svg width="11" height="11" viewBox="0 0 11 11" fill="none" className="shrink-0">
+                <path d="M5.5 1v9M1 5.5h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
+              Add test case
+            </Btn>
+          )}
         </div>
 
         {testCases.length === 0 ? (
@@ -209,13 +235,15 @@ export function FeatureView({ projectId, featureId }: Props) {
                       ? `${(tc.apiSteps ?? []).length} req`
                       : `${tc.steps.length} step${tc.steps.length !== 1 ? 's' : ''}`}
                   </span>
-                  <button
-                    className="opacity-0 group-hover:opacity-100 transition-opacity w-6 h-6 flex items-center justify-center rounded text-vsc-dim hover:text-vsc-danger hover:bg-vsc-danger-light text-base leading-none"
-                    onClick={(e) => { e.stopPropagation(); setDeleteTarget(tc.id) }}
-                    aria-label="Delete test case"
-                  >
-                    ×
-                  </button>
+                  {!isReadOnly && (
+                    <button
+                      className="opacity-0 group-hover:opacity-100 transition-opacity w-6 h-6 flex items-center justify-center rounded text-vsc-dim hover:text-vsc-danger hover:bg-vsc-danger-light text-base leading-none"
+                      onClick={(e) => { e.stopPropagation(); setDeleteTarget(tc.id) }}
+                      aria-label="Delete test case"
+                    >
+                      ×
+                    </button>
+                  )}
                 </div>
               </div>
             ))}

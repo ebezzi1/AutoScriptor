@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useState, useCallback, useRef, type ReactNode } from 'react'
 import type { User, Session } from '@supabase/supabase-js'
 import { supabase } from '../../lib/supabase'
 import { signIn as authSignIn, signUp as authSignUp, signOut as authSignOut } from '../../lib/auth'
@@ -50,6 +50,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [role, setRole] = useState<TeamRole | null>(null)
   const [loading, setLoading] = useState(true)
   const [teamState, setTeamState] = useState<TeamState>({ status: 'loading' })
+
+  // Tracks the user.id we've already resolved teams for, so spurious
+  // SIGNED_IN / TOKEN_REFRESHED events (e.g. on tab focus) don't reset
+  // teamState and remount AppProvider downstream.
+  const resolvedForUserIdRef = useRef<string | null>(null)
 
   // ── Apply a chosen team (sets teamId + role + name, transitions to ready) ─
 
@@ -155,11 +160,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // ── Initial session + live auth state ───────────────────────────────────
 
   useEffect(() => {
+    console.log('[AuthProvider] mount — subscribing to auth state')
+
     supabase.auth.getSession().then(async ({ data }) => {
       const currentUser = data.session?.user ?? null
+      console.log('[AuthProvider] getSession resolved — user:', currentUser?.id ?? 'none')
       setSession(data.session)
       setUser(currentUser)
-      if (currentUser) {
+      if (currentUser && resolvedForUserIdRef.current !== currentUser.id) {
+        resolvedForUserIdRef.current = currentUser.id
         await resolveTeams(currentUser.id)
       }
       setLoading(false)
@@ -167,23 +176,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('[AuthProvider] onAuthStateChange event:', event, 'user:', session?.user?.id)
-      const currentUser = session?.user ?? null
-      setSession(session)
-      setUser(currentUser)
+    } = supabase.auth.onAuthStateChange(async (event, nextSession) => {
+      const nextUser = nextSession?.user ?? null
+      console.log('[AuthProvider] onAuthStateChange:', event, 'user:', nextUser?.id ?? 'none')
 
-      if (event === 'SIGNED_IN' && currentUser) {
-        await resolveTeams(currentUser.id)
-      } else if (event === 'SIGNED_OUT') {
+      // Always keep session/user in sync — the User object reference may
+      // change on TOKEN_REFRESHED, but downstream consumers compare by id.
+      setSession(nextSession)
+      setUser(nextUser)
+
+      if (event === 'SIGNED_OUT') {
+        console.log('[AuthProvider] SIGNED_OUT — clearing team state')
+        resolvedForUserIdRef.current = null
         setTeamId(null)
         setTeamName(null)
         setRole(null)
         setTeamState({ status: 'loading' })
+        return
+      }
+
+      // Resolve teams ONLY when the authenticated user actually changes.
+      // Supabase fires SIGNED_IN / INITIAL_SESSION / TOKEN_REFRESHED on
+      // tab-focus and silent refreshes — re-resolving on those events would
+      // flip teamState back to 'loading', unmount AppProvider, and force a
+      // full workspace reload (the bug we're fixing).
+      if (nextUser && resolvedForUserIdRef.current !== nextUser.id) {
+        console.log('[AuthProvider] New user id — resolving teams')
+        resolvedForUserIdRef.current = nextUser.id
+        await resolveTeams(nextUser.id)
+      } else {
+        console.log('[AuthProvider] Skipping team resolution (already resolved for this user)')
       }
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      console.log('[AuthProvider] unmount — unsubscribing')
+      subscription.unsubscribe()
+    }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Auth actions ────────────────────────────────────────────────────────

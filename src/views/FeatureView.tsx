@@ -48,6 +48,15 @@ export function FeatureView({ projectId, featureId }: Props) {
   const projectUtils = state.utils.filter((u) => u.projectId === projectId)
   const projectVars = state.variables.filter((v) => v.projectId === projectId).map((v) => v.key)
 
+  // Resolve auth role used by TCs in this feature (if any)
+  const authRoles = project?.auth?.roles ?? []
+  const authEnabled = !!project?.auth?.enabled
+  const featureRoleIds = new Set(
+    testCases.map((tc) => tc.authRoleId).filter((id): id is string => !!id)
+  )
+  const usedRoles = authRoles.filter((r) => featureRoleIds.has(r.id))
+  const fallbackRole = authEnabled && usedRoles.length === 0 && authRoles.length > 0 ? authRoles[0] : null
+
   if (!feature) return <div className="p-10 text-vsc-muted text-sm">Feature not found</div>
 
   const updateFeature = (updates: Partial<Feature>) =>
@@ -133,6 +142,58 @@ export function FeatureView({ projectId, featureId }: Props) {
           )}
         </div>
       </div>
+
+      {/* Auth reference */}
+      {(() => {
+        if (!authEnabled || authRoles.length === 0) {
+          return (
+            <div className="flex items-center gap-2.5 px-4 py-3 rounded-lg border border-vsc-border/60 bg-vsc-panel/40 text-xs text-vsc-muted">
+              <svg width="13" height="13" viewBox="0 0 13 13" fill="none" className="text-vsc-dim shrink-0">
+                <circle cx="6.5" cy="6.5" r="5.5" stroke="currentColor" strokeWidth="1.2"/>
+                <path d="M6.5 4v3M6.5 9v.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+              </svg>
+              <span className="flex-1">No auth configured —</span>
+              <button
+                onClick={() => navigate({ type: 'utils', projectId })}
+                className="text-vsc-accent hover:text-white font-medium transition-colors"
+              >
+                set up auth roles in Utils &amp; Params →
+              </button>
+            </div>
+          )
+        }
+        const rolesToShow = usedRoles.length > 0 ? usedRoles : (fallbackRole ? [fallbackRole] : [])
+        if (rolesToShow.length === 0) return null
+        return (
+          <div className="flex items-center gap-2.5 px-4 py-3 rounded-lg border border-vsc-accent/30 bg-vsc-accent/5 text-xs text-vsc-muted">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="text-vsc-accent shrink-0">
+              <path d="M6 1l3.5 1.5v3.5c0 2.5-1.5 4-3.5 4.5-2-.5-3.5-2-3.5-4.5V2.5L6 1z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/>
+            </svg>
+            <span className="text-vsc-dim uppercase tracking-widest text-[10px] font-semibold">Auth</span>
+            <span>Using</span>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {rolesToShow.map((role) => (
+                <span
+                  key={role.id}
+                  className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[11px] font-medium"
+                  style={{ color: role.color, borderColor: `${role.color}60`, backgroundColor: `${role.color}18` }}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: role.color }} />
+                  {role.name}
+                </span>
+              ))}
+            </div>
+            <span>for beforeEach</span>
+            <div className="flex-1" />
+            <button
+              onClick={() => navigate({ type: 'utils', projectId })}
+              className="text-vsc-dim hover:text-vsc-accent transition-colors text-[10px]"
+            >
+              Manage →
+            </button>
+          </div>
+        )
+      })()}
 
       {/* beforeEach / afterEach */}
       <div className="flex flex-col gap-3">

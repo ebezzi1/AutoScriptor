@@ -282,13 +282,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
       .catch(console.error)
   }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Load initial workspace data from Supabase once teamId is resolved
+  // Mount/unmount tracing — should NOT fire during in-app navigation.
+  // If you see these on view changes, a parent is unmounting AppProvider.
+  useEffect(() => {
+    console.log('[AppProvider] MOUNT — user:', user?.id, 'teamId:', teamId)
+    return () => console.log('[AppProvider] UNMOUNT — user was:', user?.id, 'teamId was:', teamId)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load initial workspace data from Supabase once teamId is resolved.
+  // Keyed on user.id + teamId so that the User reference churn from
+  // TOKEN_REFRESHED events does not retrigger a workspace reload.
   useEffect(() => {
     if (!user || !teamId) { setDbLoading(false); return }
     setDbLoading(true)
-    console.log('[AppProvider] Loading workspace for team:', teamId)
+    console.log('[AppProvider] loadFullState start — team:', teamId)
     loadFullState(teamId)
-      .then((loaded) => dispatchRaw({ type: 'HYDRATE', state: loaded }))
+      .then((loaded) => {
+        console.log('[AppProvider] loadFullState success — projects:', loaded.projects.length)
+        dispatchRaw({ type: 'HYDRATE', state: loaded })
+      })
       .catch((err: Error) => {
         console.error('[AppProvider] Failed to load workspace:', err)
         showToast('Failed to load workspace — please refresh', 'error')

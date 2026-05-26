@@ -518,32 +518,52 @@ export function TestCaseEditor({ projectId, featureId, testCaseId }: Props) {
                 />
               </Field>
 
-              {project.auth?.enabled && (project.auth.roles.length ?? 0) > 0 && (
-                <Field label="Auth Role">
-                  {project.auth.roles.length === 1 ? (
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: project.auth.roles[0].color }} />
-                      <span className="text-sm text-vsc-text">{project.auth.roles[0].name}</span>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <span
-                        className="w-2.5 h-2.5 rounded-full shrink-0"
-                        style={{ backgroundColor: (project.auth.roles.find((r) => r.id === (tc.authRoleId ?? project.auth!.roles[0].id))?.color) ?? '#888' }}
-                      />
-                      <select
-                        value={tc.authRoleId ?? project.auth.roles[0].id}
-                        onChange={(e) => update({ authRoleId: e.target.value })}
-                        className="bg-vsc-hover border border-vsc-border rounded-md px-3 py-2 text-sm cursor-pointer focus:border-vsc-accent outline-none"
-                      >
-                        {project.auth.roles.map((r) => (
-                          <option key={r.id} value={r.id}>{r.name}</option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-                </Field>
-              )}
+              <Field label="Auth Role">
+                {(project.auth?.roles?.length ?? 0) === 0 ? (
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="text-vsc-dim">No auth roles —</span>
+                    <button
+                      type="button"
+                      onClick={() => navigate({ type: 'utils', projectId })}
+                      className="text-vsc-accent hover:text-white transition-colors"
+                    >
+                      create one →
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-1.5">
+                    {project.auth!.roles.length === 1 ? (
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: project.auth!.roles[0].color }} />
+                        <span className="text-sm text-vsc-text">{project.auth!.roles[0].name}</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="w-2.5 h-2.5 rounded-full shrink-0"
+                          style={{ backgroundColor: (project.auth!.roles.find((r) => r.id === (tc.authRoleId ?? project.auth!.roles[0].id))?.color) ?? '#888' }}
+                        />
+                        <select
+                          value={tc.authRoleId ?? project.auth!.roles[0].id}
+                          onChange={(e) => update({ authRoleId: e.target.value })}
+                          className="bg-vsc-hover border border-vsc-border rounded-md px-3 py-2 text-sm cursor-pointer focus:border-vsc-accent outline-none"
+                        >
+                          {project.auth!.roles.map((r) => (
+                            <option key={r.id} value={r.id}>{r.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => navigate({ type: 'utils', projectId })}
+                      className="text-[10px] text-vsc-dim hover:text-vsc-accent transition-colors self-start"
+                    >
+                      Configured in Utils &amp; Params →
+                    </button>
+                  </div>
+                )}
+              </Field>
 
               {isUI && (
                 <>

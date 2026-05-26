@@ -4,30 +4,24 @@ import { useToast } from '../components/common/Toast'
 import { useAgent } from '../store/AgentContext'
 import { Field, Input, Select, Toggle } from '../components/common/Field'
 import { Btn } from '../components/common/Btn'
-import { StepTable } from '../components/steps/StepTable'
+import { CiCdPanel } from '../components/CiCdPanel'
 import { ProjectDirectorySettings } from '../components/project/ProjectDirectorySettings'
-import type { Project, EnvProfile, AuthRole, AuthConfig } from '../types'
-import { getEnvColor, AUTH_ROLE_COLORS, toKebab } from '../types'
-
-const STANDARD_ENV_NAMES = ['dev', 'development', 'local', 'staging', 'stage', 'qa', 'uat', 'production', 'prod']
+import type { Project, CiCdConfig } from '../types'
+import { CI_PLATFORM_META } from '../types'
 
 interface Props { projectId: string }
 
 export function ProjectSettings({ projectId }: Props) {
-  const { state, dispatch } = useApp()
+  const { state, dispatch, navigate } = useApp()
   const { toast } = useToast()
   const { agentUrl, agentToken, setAgentUrl, setAgentToken, saveSettings, testConnection, setShowSetupWizard, isConnected, consecutiveFailures } = useAgent()
   const [showToken, setShowToken] = useState(false)
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState<{ ok: boolean; version?: string; uptime?: number; error?: string } | null>(null)
+  const [showCicd, setShowCicd] = useState(false)
   const project = state.projects.find((p) => p.id === projectId)
-  const projectVars = state.variables.filter((v) => v.projectId === projectId && v.scope === 'project')
-  const projectUtils = state.utils.filter((u) => u.projectId === projectId)
 
   if (!project) return <div className="p-8 text-vsc-muted text-xs">Project not found</div>
-
-  const environments = project.environments ?? []
-  const authConfig: AuthConfig = project.auth ?? { enabled: false, roles: [] }
 
   const update = <K extends keyof Project>(k: K, v: Project[K]) => {
     dispatch({
@@ -36,69 +30,10 @@ export function ProjectSettings({ projectId }: Props) {
     })
   }
 
-  const updateAuth = (updated: AuthConfig) => update('auth', updated)
-
-  const updateRole = (updated: AuthRole) =>
-    updateAuth({ ...authConfig, roles: authConfig.roles.map((r) => r.id === updated.id ? updated : r) })
-
-  const handleRoleNameChange = (role: AuthRole, newName: string) => {
-    const wasAutoPath = role.storageStatePath === `.auth/${toKebab(role.name)}.json`
-    updateRole({
-      ...role,
-      name: newName,
-      storageStatePath: wasAutoPath ? `.auth/${toKebab(newName)}.json` : role.storageStatePath,
-    })
-  }
-
-  const addRole = () => {
-    const idx = authConfig.roles.length % AUTH_ROLE_COLORS.length
-    const newRole: AuthRole = {
-      id: crypto.randomUUID(),
-      name: 'New Role',
-      storageStatePath: '.auth/new-role.json',
-      color: AUTH_ROLE_COLORS[idx],
-      loginSteps: [],
-    }
-    updateAuth({ ...authConfig, roles: [...authConfig.roles, newRole] })
-  }
-
-  const removeRole = (roleId: string) =>
-    updateAuth({ ...authConfig, roles: authConfig.roles.filter((r) => r.id !== roleId) })
-
-  const toggleAuth = (enabled: boolean) => {
-    if (enabled && authConfig.roles.length === 0) {
-      updateAuth({
-        enabled: true,
-        roles: [{
-          id: crypto.randomUUID(),
-          name: 'Default User',
-          storageStatePath: '.auth/default-user.json',
-          color: AUTH_ROLE_COLORS[0],
-          loginSteps: [],
-        }],
-      })
-    } else {
-      updateAuth({ ...authConfig, enabled })
-    }
-  }
-
-  const updateEnv = (updated: EnvProfile) => {
-    const envs = environments.map((e) => e.id === updated.id ? updated : e)
-    update('environments', envs)
-  }
-
-  const addEnv = () => {
-    const newEnv: EnvProfile = { id: crypto.randomUUID(), name: 'new-env', baseUrl: '', variableOverrides: {} }
-    update('environments', [...environments, newEnv])
-  }
-
-  const removeEnv = (envId: string) => {
-    const envs = environments.filter((e) => e.id !== envId)
-    const activeId = project.activeEnvironmentId === envId ? null : project.activeEnvironmentId
-    dispatch({
-      type: 'UPDATE_PROJECT',
-      project: { ...project, environments: envs, activeEnvironmentId: activeId, updatedAt: new Date().toISOString() },
-    })
+  const saveCicd = (cfg: CiCdConfig) => {
+    update('cicd', cfg)
+    setShowCicd(false)
+    toast('CI/CD config saved')
   }
 
   const save = () => toast('Settings saved')
@@ -119,6 +54,8 @@ export function ProjectSettings({ projectId }: Props) {
       toast(err instanceof Error ? err.message : 'Failed to save', 'error')
     }
   }
+
+  const cicdPlatformList = (project.cicd?.platforms ?? []).map((p) => CI_PLATFORM_META[p].name).join(', ')
 
   return (
     <div className="py-10 px-6 max-w-3xl mx-auto">
@@ -251,209 +188,18 @@ export function ProjectSettings({ projectId }: Props) {
 
         <div className="h-px bg-vsc-border/30" />
 
-        {/* ── Environment Profiles ──────────────────────────── */}
+        {/* ── CI/CD ────────────────────────────────────────────── */}
         <section>
-          <div className="flex items-center gap-3 mb-4">
-            <SectionTitle className="mb-0">Environment Profiles</SectionTitle>
-            <div className="flex-1" />
-            <button
-              onClick={addEnv}
-              className="text-[9px] uppercase tracking-wider border border-vsc-border text-vsc-muted px-2 py-1 rounded-sm hover:border-vsc-accent/60 hover:text-vsc-accent transition-all"
-            >
-              + Add
-            </button>
-          </div>
-
-          {environments.length === 0 && (
-            <p className="text-[10px] text-vsc-dim">No environments defined. Click + Add to create one.</p>
-          )}
-
-          <div className="flex flex-col gap-4">
-            {environments.map((env) => {
-              const envHex = getEnvColor(env)
-              const isStandard = STANDARD_ENV_NAMES.includes(env.name.toLowerCase().trim())
-              return (
-                <div key={env.id} className="border rounded-sm bg-vsc-panel overflow-hidden" style={{ borderColor: `${envHex}50` }}>
-                  {/* Env header */}
-                  <div className="flex items-center gap-3 px-3 py-2 border-b bg-vsc-hover" style={{ borderColor: `${envHex}30` }}>
-                    <span
-                      className="text-[9px] uppercase tracking-widest shrink-0 font-semibold"
-                      style={{ color: envHex }}
-                    >
-                      ● env
-                    </span>
-                    <input
-                      value={env.name}
-                      onChange={(e) => updateEnv({ ...env, name: e.target.value })}
-                      className="flex-1 bg-transparent text-[11px] font-semibold text-vsc-text outline-none border-b border-transparent focus:border-vsc-accent pb-0.5 transition-all"
-                      placeholder="environment name"
-                    />
-                    {/* Color picker for non-standard env names */}
-                    {!isStandard && (
-                      <input
-                        type="color"
-                        value={env.color ?? '#a855f7'}
-                        onChange={(e) => updateEnv({ ...env, color: e.target.value })}
-                        className="w-6 h-6 rounded-sm border border-vsc-border cursor-pointer p-0 overflow-hidden"
-                        title="Pick environment color"
-                      />
-                    )}
-                    <button
-                      onClick={() => removeEnv(env.id)}
-                      className="text-[9px] text-vsc-dim hover:text-vsc-danger transition-colors uppercase tracking-wide shrink-0"
-                    >
-                      Remove
-                    </button>
-                  </div>
-
-                  <div className="p-3 flex flex-col gap-3">
-                    {/* Base URL override */}
-                    <Field label="Base URL override">
-                      <input
-                        value={env.baseUrl}
-                        onChange={(e) => updateEnv({ ...env, baseUrl: e.target.value })}
-                        placeholder={project.baseUrl || 'https://example.com'}
-                        className="w-full bg-vsc-bg border border-vsc-border rounded-sm px-3 py-1.5 text-xs text-vsc-text placeholder-vsc-dim focus:border-vsc-accent focus:shadow-[0_0_0_1px_rgba(200,152,32,0.15)] outline-none transition-all"
-                      />
-                    </Field>
-
-                    {/* Variable overrides (legacy — quick value overrides) */}
-                    {projectVars.length > 0 && (
-                      <div>
-                        <p className="text-[9px] font-medium text-vsc-muted uppercase tracking-[0.12em] mb-2">
-                          Variable overrides
-                        </p>
-                        <div className="flex flex-col gap-1.5">
-                          {projectVars.map((v) => (
-                            <div key={v.id} className="flex items-center gap-2">
-                              <span className="text-[10px] font-mono text-vsc-dim w-28 shrink-0 truncate" title={v.key}>
-                                {v.key}
-                              </span>
-                              <input
-                                value={env.variableOverrides[v.key] ?? ''}
-                                onChange={(e) => {
-                                  const overrides = { ...env.variableOverrides }
-                                  if (e.target.value === '') {
-                                    delete overrides[v.key]
-                                  } else {
-                                    overrides[v.key] = e.target.value
-                                  }
-                                  updateEnv({ ...env, variableOverrides: overrides })
-                                }}
-                                placeholder={`default: ${v.sensitive ? '••••' : (v.value || '(empty)')}`}
-                                className="flex-1 bg-vsc-bg border border-vsc-border rounded-sm px-2 py-1 text-[10px] text-vsc-text placeholder-vsc-dim focus:border-vsc-accent outline-none transition-all font-mono"
-                              />
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {projectVars.length === 0 && (
-                      <p className="text-[10px] text-vsc-dim">No project-scope variables defined yet. Use Utils &amp; Parameters to add env-specific variables.</p>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </section>
-
-        <div className="h-px bg-vsc-border/30" />
-
-        {/* ── Authentication ──────────────────────────────────── */}
-        <section>
-          <SectionTitle>Authentication</SectionTitle>
-
-          <div className="pt-1">
-            <Toggle
-              checked={authConfig.enabled}
-              onChange={toggleAuth}
-              label="Reuse auth state (storageState)"
-            />
-          </div>
-
-          <div className={`mt-4 flex flex-col gap-4 ${authConfig.enabled ? '' : 'opacity-40 pointer-events-none select-none'}`}>
-            {authConfig.roles.map((role) => {
-              const canDelete = authConfig.roles.length > 1
-              return (
-                <details key={role.id} className="group">
-                  <summary className="cursor-pointer list-none flex items-center gap-2 py-2 text-[9px] font-semibold text-vsc-muted uppercase tracking-[0.14em] hover:text-vsc-text transition-colors select-none">
-                    <span className="group-open:rotate-90 transition-transform inline-block text-vsc-dim">▸</span>
-                    <span className="w-2 h-2 rounded-full shrink-0 inline-block" style={{ backgroundColor: role.color }} />
-                    <span>{role.name || 'Unnamed Role'}</span>
-                    <span className="text-vsc-dim normal-case tracking-normal font-normal">
-                      — {role.loginSteps.length} login step{role.loginSteps.length !== 1 ? 's' : ''}
-                    </span>
-                  </summary>
-
-                  <div className="mt-2 bg-vsc-panel border border-vsc-border rounded-sm p-4 flex flex-col gap-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <Field label="Role name">
-                        <Input
-                          value={role.name}
-                          onChange={(e) => handleRoleNameChange(role, e.target.value)}
-                          placeholder="admin"
-                        />
-                      </Field>
-                      <Field label="Storage state path">
-                        <Input
-                          value={role.storageStatePath}
-                          onChange={(e) => updateRole({ ...role, storageStatePath: e.target.value })}
-                          placeholder=".auth/admin.json"
-                          className="font-mono"
-                        />
-                      </Field>
-                    </div>
-
-                    <div>
-                      <p className="text-[10px] font-medium text-vsc-muted uppercase tracking-[0.12em] mb-2">Color</p>
-                      <div className="flex gap-2">
-                        {AUTH_ROLE_COLORS.map((c) => (
-                          <button
-                            key={c}
-                            type="button"
-                            onClick={() => updateRole({ ...role, color: c })}
-                            className={`w-5 h-5 rounded-full border-2 transition-all ${
-                              role.color === c
-                                ? 'border-vsc-text scale-110'
-                                : 'border-transparent hover:border-vsc-muted'
-                            }`}
-                            style={{ backgroundColor: c }}
-                            title={c}
-                          />
-                        ))}
-                      </div>
-                    </div>
-
-                    <div>
-                      <p className="text-[10px] font-medium text-vsc-muted uppercase tracking-[0.12em] mb-2">Login steps</p>
-                      <StepTable
-                        steps={role.loginSteps}
-                        onChange={(loginSteps) => updateRole({ ...role, loginSteps })}
-                        variables={projectVars.map((v) => v.key)}
-                        availableUtils={projectUtils}
-                        projectId={projectId}
-                      />
-                    </div>
-
-                    {canDelete && (
-                      <div className="flex justify-end">
-                        <Btn variant="danger" size="sm" onClick={() => removeRole(role.id)}>
-                          Remove role
-                        </Btn>
-                      </div>
-                    )}
-                  </div>
-                </details>
-              )
-            })}
-
-            <button
-              onClick={addRole}
-              className="text-[9px] uppercase tracking-wider border border-vsc-border text-vsc-muted px-2 py-1 rounded-sm hover:border-vsc-accent/60 hover:text-vsc-accent transition-all self-start"
-            >
-              + Add Role
-            </button>
+          <SectionTitle>CI/CD</SectionTitle>
+          <div className="flex items-center justify-between gap-4">
+            <p className="text-[10px] text-vsc-dim leading-relaxed">
+              {project.cicd && project.cicd.platforms.length > 0
+                ? <>Configured for <span className="text-vsc-muted">{cicdPlatformList}</span>.</>
+                : <>No CI/CD pipelines configured.</>}
+            </p>
+            <Btn variant="ghost" size="sm" onClick={() => setShowCicd(true)}>
+              {project.cicd && project.cicd.platforms.length > 0 ? 'Edit CI/CD' : 'Configure CI/CD'}
+            </Btn>
           </div>
         </section>
 
@@ -597,10 +343,24 @@ export function ProjectSettings({ projectId }: Props) {
           </div>
         </section>
 
-        <div className="pt-2">
+        <div className="pt-2 flex items-center gap-3">
           <Btn variant="primary" onClick={save}>Save settings</Btn>
+          <button
+            onClick={() => navigate({ type: 'utils', projectId })}
+            className="text-[10px] text-vsc-dim hover:text-vsc-accent transition-colors"
+          >
+            Manage environments &amp; auth roles in Utils &amp; Params →
+          </button>
         </div>
       </div>
+
+      {showCicd && (
+        <CiCdPanel
+          project={project}
+          onSave={saveCicd}
+          onClose={() => setShowCicd(false)}
+        />
+      )}
     </div>
   )
 }
@@ -612,28 +372,6 @@ function SectionTitle({ children, className = '' }: { children: React.ReactNode;
         {children}
       </p>
       <div className="flex-1 h-px bg-vsc-border/40" />
-    </div>
-  )
-}
-
-function StatusRow({ ok, label, detail }: { ok: boolean; label: string; detail?: string }) {
-  return (
-    <div className="flex items-center gap-2">
-      {ok ? (
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="text-green-400 shrink-0">
-          <path d="M2 6l3 3 5-5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-      ) : (
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="text-red-400 shrink-0">
-          <path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-        </svg>
-      )}
-      <span className={`text-[10px] ${ok ? 'text-vsc-muted' : 'text-red-400/80'}`}>
-        {label}
-      </span>
-      {detail && (
-        <span className="text-[9px] text-vsc-dim ml-1">{detail}</span>
-      )}
     </div>
   )
 }
